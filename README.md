@@ -1,16 +1,17 @@
 # Laplacian Pyramid Stats Viewer
 
-The **Laplacian Pyramid** is a way to represent an image as a set of band-pass images, each one containing a certain range of frequencies:
-https://docs.nvidia.com/vpi/algo_laplacian_pyramid_generator.html
-When you already have a mip map chain for a texture, creating the Laplacian Pyramid is quite simple. Each mip map becomes a frequency band in a Laplacian Pyramid once you subtract the next-smaller mip from it.
-That gives you an interesting new way of looking at and understanding the relationship between the different mip maps. By calculating the sum of all pixels for each frequency band and dividing it by the number of pixels, we get a measurement of how much of the texture information is stored in each frequency band/mip map. This can facilitate discussions about how textures should behave at specific mip map levels. For fast-paced multiplayer action games for example, you may want to have '**telescoping**' textures that have a lot of high-frequency details that mip away quickly, to keep the image easy to read in typical gameplay situations, but have sufficient details once players take a closer look at their environment (https://www.artstation.com/artwork/mA8AVv).
+The **![Laplacian Pyramid](https://docs.nvidia.com/vpi/algo_laplacian_pyramid_generator.html)** is a way to represent an image as a set of band-pass images, each one containing a certain range of frequencies:
+
+
+If you already have a mip map chain for a texture, creating the Laplacian pyramid is quite simple. Each mip map becomes a frequency band in a Laplacian pyramid when you subtract the next smaller mip from it.
+This gives you an interesting new way of looking at and understanding the relationship between different mip maps. By calculating the sum of all pixels for each frequency band and dividing it by the number of pixels, we get a measure of how much texture information is stored in each frequency band/mip map. This can facilitate discussions about how textures should behave at specific mip map levels. For example, for fast-paced multiplayer action games, you may want to have **![telescoping](https://www.artstation.com/artwork/mA8AVv)** textures that have a lot of high-frequency detail that mips away quickly to keep the image easy to read in typical gameplay situations, but still have enough detail when players look more closely at their surroundings.
 The Mip Explorer calculates these frequency distributions and presents them in a graph:
 ![Screenshot of the Mip Explorer displaying the stats of a gravel texture](Images/HighFrequencyExample.jpg)
 ![Screenshot of the Mip Explorer displaying the stats of a rusty metal texture](Images/LowFrequencyExample.jpg)
 
-You can see in the screenshots how the gravel texture has most of its information stored in the mips 2-4, while the rusty metal texture has mostly lower frequencies. Therefore, most of its information is stored in the mips 6-8.
+As you can see in the screenshots above, the gravel texture has most of its information stored in mips 2-4, while the rusty metal texture has mostly lower frequencies. Therefore, most of its information is stored in mips 6-8. Depending on your use case, you may want to remove mip 0 from the metal texture since it doesn't contribute much anyway, or you may want to add some low frequency detail to the gravel texture since you want the texture to be noticeable from a distance.
 
-While the calculation is relatively fast, it also stores the result in a cache that gets saved between sessions, to make browsing through your textures as fast as possible.
+While the calculation is relatively fast, it also stores the result in a cache that is saved between sessions to make browsing through your textures as fast as possible.
 
 Other features include:
 - Switching between different modes, to either graph color channels individually, the calculated luminance or the simple average of the channels
@@ -18,15 +19,15 @@ Other features include:
 - Dark/Light UI mode depending on your system's settings
 
 # FAQ:
-## Do I need the Mip Explorer as an artist?
-The Mip Explorer is not primarily intended as a tool that gets used regularly in an actual production. It's supposed to be a demonstration tool and illustrates some characteristics of mip maps that not all people are usually aware of.
+## As an artist, do I need the Mip Explorer?
+The Mip Explorer is not primarily intended as a tool to be used regularly in a real production. It's meant to be a demonstration tool and illustrates some characteristics of mip maps that not all people are usually aware of.
 
 ## What do I need to run the Mip Explorer?
-The Mip Explorer was developed and tested on Windows 11. Some features (dark/light UI mode, drag-and-drop of files from outside) rely on Windows. I did also implement matching alternatives for MacOS, but I didn't test them myself. So it may run fine on MacOS, but I don't know. In case you test running it on a Mac, please tell me your results.
-The tool is written completely in Python 3.13.2 and has sevearal dependencies that are not part of the Python standard library. Please check the provided **requirements.txt** for details.
+Mip Explorer has been developed and tested on Windows 11. Some features (dark/light UI mode, drag-and-drop of files from outside) depend on Windows. I've also implemented alternatives for MacOS, but I haven't tested them myself. So it might work fine on MacOS, but I don't know. If you do test it on a Mac, please let me know your results.
+The tool is completely written in Python 3.13.2 and has some dependencies that are not part of the standard Python library. Please see the included **requirements.txt** for details.
 
 ## I found a bug!
-Please reach out to me: https://bsky.app/profile/haukethiessen.bsky.social
+Please contact me: https://bsky.app/profile/haukethiessen.bsky.social
 I'm always happy to get feedback and fix any errors that you may find.
 
 # License
