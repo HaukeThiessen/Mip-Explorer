@@ -1,10 +1,10 @@
 # Laplacian Pyramid Stats Viewer
 
-The **![Laplacian Pyramid](https://docs.nvidia.com/vpi/algo_laplacian_pyramid_generator.html)** is a way to represent an image as a set of band-pass images, each one containing a certain range of frequencies:
+The **[Laplacian Pyramid](https://docs.nvidia.com/vpi/algo_laplacian_pyramid_generator.html)** is a way to represent an image as a set of band-pass images, each one containing a certain range of frequencies:
 
 
 If you already have a mip map chain for a texture, creating the Laplacian pyramid is quite simple. Each mip map becomes a frequency band in a Laplacian pyramid when you subtract the next smaller mip from it.
-This gives you an interesting new way of looking at and understanding the relationship between different mip maps. By calculating the sum of all pixels for each frequency band and dividing it by the number of pixels, we get a measure of how much texture information is stored in each frequency band/mip map. This can facilitate discussions about how textures should behave at specific mip map levels. For example, for fast-paced multiplayer action games, you may want to have **![telescoping](https://www.artstation.com/artwork/mA8AVv)** textures that have a lot of high-frequency detail that mips away quickly to keep the image easy to read in typical gameplay situations, but still have enough detail when players look more closely at their surroundings.
+This gives you an interesting new way of looking at and understanding the relationship between different mip maps. By calculating the sum of all pixels for each frequency band and dividing it by the number of pixels, we get a measure of how much texture information is stored in each frequency band/mip map. This can facilitate discussions about how textures should behave at specific mip map levels. For example, for fast-paced multiplayer action games, you may want to have **[telescoping](https://www.artstation.com/artwork/mA8AVv)** textures that have a lot of high-frequency detail that mips away quickly to keep the image easy to read in typical gameplay situations, but still have enough detail when players look more closely at their surroundings.
 The Mip Explorer calculates these frequency distributions and presents them in a graph:
 ![Screenshot of the Mip Explorer displaying the stats of a gravel texture](Images/HighFrequencyExample.jpg)
 ![Screenshot of the Mip Explorer displaying the stats of a rusty metal texture](Images/LowFrequencyExample.jpg)
