@@ -166,6 +166,17 @@ def update_plot(plot, y_axis_values):
         plot.plot(y_axis_values, color_fg)
 
 
+def update_list(list_widget, y_axis_values):
+    if y_axis_values.__len__() == 0:
+        list_widget.setText("   -   ")
+        return
+    caption = ""
+    for idx, value in enumerate(y_axis_values):
+
+        caption += "  Mip " + "{:<5}".format(str(idx) + ":") + "{:.2f}".format(value) + "  \n"
+    list_widget.setText(caption)
+
+
 def get_plot_values(filepath, work_mode):
     cachepath = os.path.dirname(__file__) + "/Saved/CachedData.json"
     deltas = try_getting_cached_results(filepath, cachepath)
@@ -218,12 +229,12 @@ class InfoPanel(QWidget):
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         layout = QHBoxLayout(self)
-        lbl_resolution = QLabel("Resolution")
+        lbl_resolution = QLabel("Resolution:")
         lbl_resolution.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.lbl_res_value = QLabel("")
-        lbl_size = QLabel("Size")
-        lbl_size.setAlignment(Qt.AlignmentFlag.AlignRight)
+        lbl_size = QLabel("Size:")
         self.lbl_size_value = QLabel()
+        lbl_size.setAlignment(Qt.AlignmentFlag.AlignRight)
         layout.addWidget(lbl_resolution)
         layout.addWidget(self.lbl_res_value)
         layout.addWidget(lbl_size)
@@ -455,6 +466,7 @@ class MainWindow(QMainWindow):
         self.btn_manual_update.clicked.connect(self.handle_update)
         self.lst_file_list = FileExplorer()
         self.lst_file_list.file_changed.connect(self.handle_update)
+        self.numbers_list = QLabel("")
 
         self.texture_info = InfoPanel()
         self.lbl_preview = QLabel(self)
@@ -467,10 +479,13 @@ class MainWindow(QMainWindow):
         main_layout = QHBoxLayout()
         file_explorer = QVBoxLayout()
         details_panel = QVBoxLayout()
+        results_panel = QHBoxLayout()
         details_options = QHBoxLayout()
 
         # Organizing widgets in layouts
-        details_panel.addWidget(self.canvas)
+        results_panel.addWidget(self.canvas)
+        results_panel.addWidget(self.numbers_list)
+        details_panel.addLayout(results_panel)
         details_panel.addWidget(self.texture_info)
         details_panel.addWidget(self.lbl_preview)
         details_panel.addLayout(details_options)
@@ -530,6 +545,7 @@ class MainWindow(QMainWindow):
             self.plt_mips.set_visible(True)
             self.fig.set_visible(True)
             self.canvas.draw()
+            update_list(self.numbers_list, y_axis_values)
         else:
             update_plot(self.plt_mips, [])
             self.plt_mips.set_visible(False)
