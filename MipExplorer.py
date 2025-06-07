@@ -435,7 +435,7 @@ class MainWindow(QMainWindow):
         self.fig = Figure(
             figsize=(12, 5),
             dpi=100,
-            facecolor="black",
+            facecolor="black" if is_system_dark() else "white",
             layout="tight",
             linewidth=0,
         )
@@ -466,7 +466,7 @@ class MainWindow(QMainWindow):
         self.btn_manual_update.clicked.connect(self.handle_update)
         self.lst_file_list = FileExplorer()
         self.lst_file_list.file_changed.connect(self.handle_update)
-        self.numbers_list = QLabel("")
+        self.numbers_list = QLabel("             ")
 
         self.texture_info = InfoPanel()
         self.lbl_preview = QLabel(self)
@@ -539,7 +539,7 @@ class MainWindow(QMainWindow):
             y_axis_values = get_plot_values(selected_file, work_mode)
             update_plot(self.plt_mips, y_axis_values)
             self.plt_mips.set_xlabel("Mips")
-            self.plt_mips.set_ylabel("Information")
+            self.plt_mips.set_ylabel("Information per Pixel")
             self.plt_mips.yaxis.set_major_locator(MaxNLocator(integer=True))
             self.plt_mips.xaxis.set_major_locator(MaxNLocator(integer=True))
             self.plt_mips.set_visible(True)
