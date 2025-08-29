@@ -166,14 +166,19 @@ def update_plot(plot, y_axis_values):
         plot.plot(y_axis_values, color_fg)
 
 
-def update_list(list_widget, y_axis_values):
+def update_list(list_widget, y_axis_values, work_mode):
     if y_axis_values.__len__() == 0:
         list_widget.setText("   -   ")
         return
     caption = ""
-    for idx, value in enumerate(y_axis_values):
-
-        caption += "  Mip " + "{:<5}".format(str(idx) + ":") + "{:.2f}".format(value) + "  \n"
+    if work_mode == 2:
+        for idx, value in enumerate(y_axis_values):
+            caption += "  Mip " + "{:<5}".format(str(idx) + ", R: ") + "{:.3f}".format(value[0]) + "  \n"
+            caption += "  Mip " + "{:<5}".format(str(idx) + ", G: ") + "{:.3f}".format(value[1]) + "  \n"
+            caption += "  Mip " + "{:<5}".format(str(idx) + ", B: ") + "{:.3f}".format(value[2]) + "  \n\n"
+    else:
+        for idx, value in enumerate(y_axis_values):
+            caption += "  Mip " + "{:<5}".format(str(idx) + ":") + "{:.3f}".format(value) + "  \n"
     list_widget.setText(caption)
 
 
@@ -341,7 +346,7 @@ class FileExplorer(QWidget):
 class WorkModeSettingsDialog(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Automatic Plot Settings")
+        self.setWindowTitle("Automatic Work Mode Settings")
 
         my_icon = QIcon()
         my_icon.addFile(settings_icon)
@@ -352,12 +357,39 @@ class WorkModeSettingsDialog(QDialog):
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         layout = QFormLayout()
+
         lbl_data_prefixes = QLabel("Data")
+        lbl_data_prefixes.setToolTip(
+            self.tr(
+                "Files using any of these suffixes are interpreted as data textures.\nWhen calculating the luminance differences between pixels, all channels have the same weight."
+            )
+        )
         self.le_data_prefixes = QLineEdit(", ".join(str(x) for x in Settings.data_suffixes))
+        self.le_data_prefixes.setToolTip(
+            self.tr("Separate suffixes with a comma. Whitespaces are removed automatically.")
+        )
+
         lbl_color_prefixes = QLabel("Color")
+        lbl_color_prefixes.setToolTip(
+            self.tr(
+                "Files using any of these suffixes are interpreted as color textures.\nWhen calculating the luminance differences between pixels, the green channel has the biggest impact."
+            )
+        )
         self.le_color_prefixes = QLineEdit(", ".join(str(x) for x in Settings.color_suffixes))
+        self.le_color_prefixes.setToolTip(
+            self.tr("Separate suffixes with a comma. Whitespaces are removed automatically.")
+        )
+
         lbl_channels_prefixes = QLabel("Channels")
+        lbl_channels_prefixes.setToolTip(
+            self.tr(
+                "Files using any of these suffixes are interpreted as packed textures.\nThe differences between the mip maps are calculated for each channel separately."
+            )
+        )
         self.le_channels_prefixes = QLineEdit(", ".join(str(x) for x in Settings.channels_suffixes))
+        self.le_channels_prefixes.setToolTip(
+            self.tr("Separate suffixes with a comma. Whitespaces are removed automatically.")
+        )
 
         layout.addWidget(lbl_data_prefixes)
         layout.addWidget(self.le_data_prefixes)
@@ -368,10 +400,15 @@ class WorkModeSettingsDialog(QDialog):
         layout.addWidget(self.button_box)
         self.setLayout(layout)
 
+    def clean_suffixes_list(self, suffixes):
+        for suffix in suffixes:
+            suffix.strip()
+        return [suffix for suffix in suffixes if suffix != ""]
+
     def accept(self):
-        Settings.data_suffixes = self.le_data_prefixes.text().split(", ")
-        Settings.color_suffixes = self.le_color_prefixes.text().split(", ")
-        Settings.channels_suffixes = self.le_channels_prefixes.text().split(", ")
+        Settings.data_suffixes = self.clean_suffixes_list(self.le_data_prefixes.text().split(","))
+        Settings.color_suffixes = self.clean_suffixes_list(self.le_color_prefixes.text().split(","))
+        Settings.channels_suffixes = self.clean_suffixes_list(self.le_channels_prefixes.text().split(","))
         Settings.save_settings()
         super().accept()
 
@@ -459,14 +496,18 @@ class MainWindow(QMainWindow):
         # Widgets
         self.btn_manual_update = QPushButton("Refresh")
         self.cmb_work_mode = QComboBox()
-        self.cmb_work_mode.addItems(["Colors", "Data", "Channels"])
+        self.cmb_work_mode.addItems(["Color", "Data", "Channels"])
         self.cmb_work_mode.currentIndexChanged.connect(self.handle_update)
         self.btn_work_mode_settings = SquareButton("...")
+        self.btn_work_mode_settings.setToolTip(self.tr("Change the suffixes to search for when setting the work mode"))
         self.btn_work_mode_settings.clicked.connect(self.open_work_mode_settings)
         self.btn_manual_update.clicked.connect(self.handle_update)
         self.lst_file_list = FileExplorer()
-        self.lst_file_list.file_changed.connect(self.handle_update)
+        self.lst_file_list.file_changed.connect(self.handle_file_changed)
+        self.numbers_list_scroll = QScrollArea()
         self.numbers_list = QLabel("             ")
+        self.numbers_list_scroll.setWidget(self.numbers_list)
+        self.numbers_list_scroll.setWidgetResizable(True)
 
         self.texture_info = InfoPanel()
         self.lbl_preview = QLabel(self)
@@ -483,8 +524,8 @@ class MainWindow(QMainWindow):
         details_options = QHBoxLayout()
 
         # Organizing widgets in layouts
-        results_panel.addWidget(self.canvas)
-        results_panel.addWidget(self.numbers_list)
+        results_panel.addWidget(self.canvas, 5)
+        results_panel.addWidget(self.numbers_list_scroll, 1)
         details_panel.addLayout(results_panel)
         details_panel.addWidget(self.texture_info)
         details_panel.addWidget(self.lbl_preview)
@@ -493,9 +534,8 @@ class MainWindow(QMainWindow):
         details_options.addWidget(self.cmb_work_mode)
         details_options.addStretch(3)
         details_options.addWidget(self.btn_work_mode_settings)
-        details_panel.setSizeConstraint(QLayout.SetNoConstraint)
         file_explorer.addWidget(self.lst_file_list)
-        main_layout.addLayout(file_explorer, 1)
+        main_layout.addLayout(file_explorer, 2)
         main_layout.addLayout(details_panel, 10)
 
         file_explorer.setSizeConstraint(QLayout.SetMaximumSize)
@@ -512,12 +552,21 @@ class MainWindow(QMainWindow):
         return
 
     def is_mip_mappable(self, pixmap):
+        if pixmap.size().width() == 0 or pixmap.size().height() == 0:
+            return False
         return (
             math.log(pixmap.size().width(), 2).is_integer()
             and math.log(pixmap.size().height(), 2).is_integer()
             and pixmap.size().width() > 3
             and pixmap.size().height() > 3
         )
+
+    def handle_file_changed(self):
+        automatic_work_mode = get_automatic_work_mode(selected_file)
+        if not automatic_work_mode == WorkMode.MAX:
+            print("set automatic work mode to " + str(automatic_work_mode))
+            self.cmb_work_mode.setCurrentIndex(automatic_work_mode.value)
+        self.handle_update()
 
     def handle_update(self):
         if not os.path.isfile(selected_file):
@@ -532,10 +581,6 @@ class MainWindow(QMainWindow):
             else:
                 self.lbl_preview.setFixedSize(300, 300 / aspect_ratio)
             work_mode = self.cmb_work_mode.currentIndex()
-            automatic_work_mode = get_automatic_work_mode(selected_file)
-            if not automatic_work_mode == WorkMode.MAX:
-                work_mode = automatic_work_mode
-                self.cmb_work_mode.setCurrentIndex(work_mode.value)
             y_axis_values = get_plot_values(selected_file, work_mode)
             update_plot(self.plt_mips, y_axis_values)
             self.plt_mips.set_xlabel("Mips")
@@ -545,7 +590,7 @@ class MainWindow(QMainWindow):
             self.plt_mips.set_visible(True)
             self.fig.set_visible(True)
             self.canvas.draw()
-            update_list(self.numbers_list, y_axis_values)
+            update_list(self.numbers_list, y_axis_values, work_mode)
         else:
             update_plot(self.plt_mips, [])
             self.plt_mips.set_visible(False)
