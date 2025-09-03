@@ -67,6 +67,7 @@ SUPPORTEDFORMATS = (
     "*.sr",
     "*.ras",
     "*.tiff",
+    "*.tif",
     "*.exr",
     "*.hdr",
     "*.pic",
@@ -648,3 +649,4 @@ if __name__ == "__main__":
     window.show()
 
     app.exec()
+
