@@ -33,12 +33,15 @@ import numpy as np
 import cv2
 import platform
 import subprocess
+import glob
+import csv
+import datetime
+from pathlib import Path
 
 from enum import Enum
 from PySide6.QtCore import *
 from PySide6.QtWidgets import *
 from PySide6.QtGui import QPixmap, QIcon
-from collections import OrderedDict
 
 matplotlib.use("Qt5Agg")
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
@@ -46,11 +49,12 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 
 if platform.system() == "Darwin":
+    # supposed to work on Mac OS, but didn't test this
     from Foundation import NSURL
 else:
     import winreg
 
-SUPPORTEDFORMATS = (
+SUPPORTEDFORMATS = {
     "*.bmp",
     "*.dib",
     "*.jpeg",
@@ -71,14 +75,19 @@ SUPPORTEDFORMATS = (
     "*.exr",
     "*.hdr",
     "*.pic",
-)
+    "*.csv",
+}
 
 CACHESIZE = 100
 
-FILEBROWSER_PATH = os.path.join(os.getenv("WINDIR"), "explorer.exe")
+# The version of the cache generation method. Change this if you change the way the cache is generated, to ensure
+# that the tool doesn't try to use outdated caches
+CACHEVERSION: int = 1
 
-allow_caching = True
-selected_file = ""
+FILEBROWSER_PATH: str = os.path.join(os.getenv("WINDIR"), "explorer.exe")
+
+allow_caching: bool = True
+selected_file: str = ""
 
 dark_color = "#2B2B2B"
 light_color = "#FFFAF0"
@@ -91,13 +100,15 @@ class WorkMode(Enum):
     MAX = 3
 
 
-def calculate_deltas(filepath):
+def calculate_deltas(filepath: str, b_all_mips: bool) -> list[list[float]]:
     try:
         img1 = cv2.imread(filepath)
 
         shorter_edge = min(img1.shape[0], img1.shape[1])
-        loops = int(math.log2(shorter_edge))
-        deltas = []
+        loops: int = 1
+        if b_all_mips:
+            loops = int(math.log2(shorter_edge))
+        deltas: list[list[float]] = []
         for x in range(loops):
             smaller_mip = img1
             smaller_mip = cv2.resize(smaller_mip, (0, 0), fx=0.5, fy=0.5)
@@ -111,50 +122,76 @@ def calculate_deltas(filepath):
             img1 = cv2.resize(img1, (0, 0), fx=0.5, fy=0.5)
         return deltas
     except:
-        print("Failed to calculate deltas")
+        print("Failed to calculate deltas for " + filepath)
+        return [[0.0, 0.0, 0.0]]
 
 
-def try_getting_cached_results(filepath, cachepath):
+def ensure_cache_version(cachepath: str):
+    """
+    Ensure the cache version and cache generation version match. If not, delete the cache
+    """
+    is_version_correct = True
+    try:
+        with open(cachepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if "Version" in data:
+            is_version_correct = CACHEVERSION == data["Version"]
+    except:
+        print("Failed to find the cache file")
+        is_version_correct = False
+    if not is_version_correct:
+        print("Cache generation version changed. Deleting the cache..")
+        os.remove(cachepath)
+
+
+def try_getting_cached_results(filepath: str, cachepath: str) -> list[list[float]]:
     if not allow_caching:
         return
     try:
-        with open(cachepath) as f:
-            data = json.load(f)
-        if filepath in data:
-            last_time_modified = os.path.getmtime(filepath)
-            cached_last_time_modified = data[filepath][1]
-            if last_time_modified <= cached_last_time_modified:
-                return data[filepath][0]
+        with open(cachepath, "r", encoding="utf-8") as file:
+            data = json.load(file)
+        if "Results" in data:
+            if filepath in data["Results"]:
+                last_time_modified = os.path.getmtime(filepath)
+                cached_last_time_modified = data["Results"][filepath][1]
+                if last_time_modified <= cached_last_time_modified:
+                    return data["Results"][filepath][0]
     except:
-        pass
+        print("No cached results found")
 
 
-def save_cached_results(y_axis_values, filepath, cachepath):
+def save_cached_results(y_axis_values: list[list[float]], filepath: str, cachepath: str):
     cache_entry = {filepath: (y_axis_values, os.path.getmtime(filepath))}
-
-    dir_saved = os.path.dirname(Settings.settings_path)
-    if not os.path.exists(dir_saved):
-        try:
-            os.mkdir(dir_saved)
-        except:
-            pass
+    output_file_path = Path(cachepath)
+    if not output_file_path.exists:
+        output_file_path.parent.mkdir(parents=True, exist_ok=True)
+        output_file_path.write_text("")
     try:
         with open(cachepath, "r", encoding="utf-8") as file:
-            file_data = OrderedDict(json.load(file))
-            file_data.update(cache_entry)
-    except:
-        file_data = cache_entry
+            try:
+                data = json.load(file)
+            except:
+                data = dict()
+            if "Results" in data:
+                data["Results"].update(cache_entry)
+            else:
+                cache = {"Results": cache_entry}
+                data.update(cache)
 
-    if file_data.__len__() > CACHESIZE:
-        file_data.popitem(False)
-    try:
+            if data["Results"].__len__() > CACHESIZE:
+                data["Results"].popitem(False)
+
+            if "Version" in data:
+                data["Version"] = CACHEVERSION
+            else:
+                data.update({"Version": CACHEVERSION})
         with open(cachepath, "w", encoding="utf-8") as file:
-            json.dump(file_data, file, ensure_ascii=False, indent=4)
+            json.dump(data, file, ensure_ascii=False, indent=4)
     except:
         print("Failed to write cached results")
 
 
-def update_plot(plot, y_axis_values):
+def update_plot(plot, y_axis_values: list[list[float]]):
     if y_axis_values.__len__() == 0:
         return
     plot.clear()
@@ -167,12 +204,12 @@ def update_plot(plot, y_axis_values):
         plot.plot(y_axis_values, color_fg)
 
 
-def update_list(list_widget, y_axis_values, work_mode):
+def update_list(list_widget, y_axis_values: list[list[float]], work_mode: WorkMode):
     if y_axis_values.__len__() == 0:
         list_widget.setText("   -   ")
         return
     caption = ""
-    if work_mode == 2:
+    if work_mode == WorkMode.CHANNELS:
         for idx, value in enumerate(y_axis_values):
             caption += "  Mip " + "{:<5}".format(str(idx) + ", R: ") + "{:.3f}".format(value[0]) + "  \n"
             caption += "  Mip " + "{:<5}".format(str(idx) + ", G: ") + "{:.3f}".format(value[1]) + "  \n"
@@ -183,17 +220,20 @@ def update_list(list_widget, y_axis_values, work_mode):
     list_widget.setText(caption)
 
 
-def get_plot_values(filepath, work_mode):
-    cachepath = os.path.dirname(__file__) + "/Saved/CachedData.json"
+def get_plot_values(filepath: str, work_mode: WorkMode) -> list[list[float]]:
     deltas = try_getting_cached_results(filepath, cachepath)
     if not deltas:
-        deltas = calculate_deltas(filepath)
+        deltas = calculate_deltas(filepath, True)
         save_cached_results(deltas, filepath, cachepath)
-    channel_weights = (0.22, 0.72, 0.07) if work_mode == 0 else (0.333, 0.333, 0.333)
-    if work_mode == 2:
+    return convert_deltas_to_plot_values(deltas, work_mode)
+
+
+def convert_deltas_to_plot_values(deltas: list[list[float]], work_mode: WorkMode) -> list[list[float]] | list[float]:
+    channel_weights = (0.22, 0.72, 0.07) if work_mode == WorkMode.COLOR else (0.333, 0.333, 0.333)
+    if work_mode == WorkMode.CHANNELS:
         return deltas
     else:
-        weighted_deltas = []
+        weighted_deltas: list[list[float]] = []
         for delta in deltas:
             weighted_deltas.append(
                 delta[0] * channel_weights[0] + delta[1] * channel_weights[1] + delta[2] * channel_weights[2]
@@ -201,7 +241,7 @@ def get_plot_values(filepath, work_mode):
     return weighted_deltas
 
 
-def get_automatic_work_mode(filePath):
+def get_automatic_work_mode(filePath: str) -> WorkMode:
     base_name = os.path.splitext(os.path.basename(filePath))[0]
     if any(base_name.endswith(suffix) for suffix in Settings.data_suffixes):
         return WorkMode.DATA
@@ -212,7 +252,7 @@ def get_automatic_work_mode(filePath):
     return WorkMode.MAX
 
 
-def is_system_dark():
+def is_system_dark() -> bool:
     if platform.system() == "Darwin":
         try:
             cmd = "defaults read -g AppleInterfaceStyle"
@@ -246,7 +286,7 @@ class InfoPanel(QWidget):
         layout.addWidget(lbl_size)
         layout.addWidget(self.lbl_size_value)
 
-    def update_info(self, filepath, pixmap):
+    def update_info(self, filepath, pixmap: QPixmap):
         self.lbl_res_value.setText(str(pixmap.size().height()) + " x " + str(pixmap.size().width()))
         file_size = os.path.getsize(filepath)
         if file_size < 1048576:  # Smaller than 1 MB
@@ -267,18 +307,26 @@ class SquareButton(QPushButton):
 
 class FileExplorer(QWidget):
     file_changed = Signal()
+    scan_directory_label: str = "🗃️ Scan Directory"
 
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         v_layout = QVBoxLayout(self)
         h_layout = QHBoxLayout()
+        list_layout = QVBoxLayout()
         self.le_address = QLineEdit()
         self.tree_view = QTreeView()
         self.list_view = QListView()
+        self.btn_batch = QPushButton(self.scan_directory_label)
+        self.btn_batch.setToolTip("Calculates Mip0's information density for all textures in this directory and sub-directories.\n"
+                                  "Stores the sorted results in a csv file.\n"
+                                  "The Work mode is set to color for now, regardless of suffix.")
         self.list_view.setMinimumWidth(150)
         self.tree_view.setMinimumWidth(200)
         h_layout.addWidget(self.tree_view)
-        h_layout.addWidget(self.list_view)
+        h_layout.addLayout(list_layout)
+        list_layout.addWidget(self.list_view)
+        list_layout.addWidget(self.btn_batch)
         v_layout.addWidget(self.le_address)
         v_layout.addLayout(h_layout)
         path = QDir.rootPath()
@@ -304,8 +352,56 @@ class FileExplorer(QWidget):
         self.list_view.selectionModel().selectionChanged.connect(self.handle_selection_changed)
         self.list_view.doubleClicked.connect(self.open_current_directory)
         self.le_address.textEdited.connect(self.handle_address_changed)
+        self.btn_batch.clicked.connect(self.process_current_directory)
 
-    def open_current_directory(self, index):
+    def process_current_directory(self):
+        """
+        Create a csv file with the Mip0 info stats of all files, sorted
+        """
+        self.btn_batch.setEnabled(False)
+        self.btn_batch.setText("---")
+        path = self.file_model.rootPath()
+        files: list[str] = glob.glob(self.le_address.text() + "/**/*.tif", recursive=True)
+        supportedEndings: list[str] = []
+        for SupportedFormat in SUPPORTEDFORMATS:
+            supportedEndings.append(SupportedFormat[1:])
+
+        files = list(p.resolve() for p in Path(path).glob("**/*") if p.suffix in supportedEndings)
+        results_table: list[list[float | str, str, str]] = []
+        progress = QProgressDialog("", "Cancel", 0, len(files), self)
+        progress.setWindowTitle("Processing Mips in \n" + path + "...")
+        progress.setWindowModality(Qt.WindowModal)
+        for i in range(0, len(files)):
+            progress.setValue(i)
+            pixmap = QPixmap(Path(files[i]))
+            if is_mip_mappable(pixmap):
+                deltas: list[list[float]] = calculate_deltas(files[i], False)
+                values: list[float] | list[list[float]] = convert_deltas_to_plot_values(deltas, WorkMode.COLOR)
+                new_entry = [
+                    values[0],
+                    files[i].__str__(),
+                    pixmap.width().__str__() + "x" + pixmap.height().__str__(),
+                ]
+                results_table.append(new_entry)
+            progress.setValue(i)
+            if progress.wasCanceled():
+                break
+        progress.setValue(len(files))
+        results_table_sorted = sorted(results_table)
+        for entry in results_table_sorted:
+            entry[0] = "{:.2f}".format(entry[0])
+        results_table_sorted.insert(0, ("Mip0 Information", "Filepath", "Dimensions"))
+        time: str = datetime.date.today().strftime("%Y_%m_%d_%H_%M_%S")
+        try:
+            with open(path + "\\MipStats_ " + time + ".csv", "w", newline="") as csvfile:
+                writer = csv.writer(csvfile, quoting=csv.QUOTE_ALL)
+                writer.writerows(results_table_sorted)
+        except:
+            print("Failed to write Scan Results to csv file.")
+        self.btn_batch.setText(self.scan_directory_label)
+        self.btn_batch.setEnabled(True)
+
+    def open_current_directory(self):
         selected_file_path = self.list_view.model().filePath(self.list_view.selectedIndexes()[0])
         if os.path.isfile(selected_file_path):
             selected_file_path = os.path.normpath(selected_file_path)
@@ -329,7 +425,7 @@ class FileExplorer(QWidget):
         self.le_address.setText(selected_file)
         self.file_changed.emit()
 
-    def jump_to_path(self, target_path):
+    def jump_to_path(self, target_path: str):
         # TODO: Consistent behavior, select file if applicable and jump to correct location
         if os.path.isfile(target_path):
             self.list_view.setRootIndex(self.file_model.setRootPath(target_path))
@@ -339,9 +435,6 @@ class FileExplorer(QWidget):
             self.tree_view.expand(self.dir_model.index(target_path))
             self.tree_view.setCurrentIndex(self.dir_model.index(target_path))
             self.le_address.setText(target_path)
-
-    def get_current_file(self):
-        return self.list_view.selectedIndexes()[0]
 
 
 class WorkModeSettingsDialog(QDialog):
@@ -401,7 +494,7 @@ class WorkModeSettingsDialog(QDialog):
         layout.addWidget(self.button_box)
         self.setLayout(layout)
 
-    def clean_suffixes_list(self, suffixes):
+    def clean_suffixes_list(self, suffixes: list[str]):
         for suffix in suffixes:
             suffix.strip()
         return [suffix for suffix in suffixes if suffix != ""]
@@ -415,10 +508,10 @@ class WorkModeSettingsDialog(QDialog):
 
 
 class Settings:
-    color_suffixes = []
-    data_suffixes = []
-    channels_suffixes = []
-    settings_path = os.path.dirname(__file__) + "/Saved/Settings.json"
+    color_suffixes: list[str] = []
+    data_suffixes: list[str] = []
+    channels_suffixes: list[str] = []
+    settings_path: str = os.path.dirname(__file__) + "\\Saved\\Settings.json"
 
     @staticmethod
     def load_settings():
@@ -433,7 +526,6 @@ class Settings:
                 Settings.channels_suffixes = data["channelsSuffixes"]
         except:
             print("Failed to load settings")
-            pass
 
     @staticmethod
     def save_settings():
@@ -442,7 +534,7 @@ class Settings:
             try:
                 os.mkdir(dir_saved)
             except:
-                pass
+                print("Failed to create the Saved directory")
         try:
             with open(Settings.settings_path, "w", encoding="utf-8") as f:
                 json.dump(
@@ -459,10 +551,20 @@ class Settings:
             print("Failed to write settings to file")
 
 
+def is_mip_mappable(pixmap: QPixmap) -> bool:
+    if pixmap.size().width() == 0 or pixmap.size().height() == 0:
+        return False
+    return (
+        math.log(pixmap.size().width(), 2).is_integer()
+        and math.log(pixmap.size().height(), 2).is_integer()
+        and pixmap.size().width() > 3
+        and pixmap.size().height() > 3
+    )
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-
         my_icon = QIcon()
         my_icon.addFile(app_icon)
         self.setWindowIcon(my_icon)
@@ -495,11 +597,11 @@ class MainWindow(QMainWindow):
         self.canvas.draw()
 
         # Widgets
-        self.btn_manual_update = QPushButton("Refresh")
+        self.btn_manual_update = QPushButton("🔃 Refresh")
         self.cmb_work_mode = QComboBox()
-        self.cmb_work_mode.addItems(["Color", "Data", "Channels"])
+        self.cmb_work_mode.addItems(["🎨 Color", "📅 Data", "🚦 Channels"])
         self.cmb_work_mode.currentIndexChanged.connect(self.handle_update)
-        self.btn_work_mode_settings = SquareButton("...")
+        self.btn_work_mode_settings = SquareButton("⚙️ Settings")
         self.btn_work_mode_settings.setToolTip(self.tr("Change the suffixes to search for when setting the work mode"))
         self.btn_work_mode_settings.clicked.connect(self.open_work_mode_settings)
         self.btn_manual_update.clicked.connect(self.handle_update)
@@ -517,6 +619,7 @@ class MainWindow(QMainWindow):
         self.pixmap = QPixmap("")
 
         self.lbl_preview.setPixmap(self.pixmap)
+
         # Layouts
         main_layout = QHBoxLayout()
         file_explorer = QVBoxLayout()
@@ -552,20 +655,9 @@ class MainWindow(QMainWindow):
         dialog.exec()
         return
 
-    def is_mip_mappable(self, pixmap):
-        if pixmap.size().width() == 0 or pixmap.size().height() == 0:
-            return False
-        return (
-            math.log(pixmap.size().width(), 2).is_integer()
-            and math.log(pixmap.size().height(), 2).is_integer()
-            and pixmap.size().width() > 3
-            and pixmap.size().height() > 3
-        )
-
     def handle_file_changed(self):
         automatic_work_mode = get_automatic_work_mode(selected_file)
         if not automatic_work_mode == WorkMode.MAX:
-            print("set automatic work mode to " + str(automatic_work_mode))
             self.cmb_work_mode.setCurrentIndex(automatic_work_mode.value)
         self.handle_update()
 
@@ -574,14 +666,14 @@ class MainWindow(QMainWindow):
             return
         pixmap = QPixmap(selected_file)
         self.texture_info.update_info(selected_file, pixmap)
-        if self.is_mip_mappable(pixmap):
+        if is_mip_mappable(pixmap):
             self.lbl_preview.setPixmap(pixmap)
-            aspect_ratio = pixmap.size().width() / pixmap.size().height()
+            aspect_ratio: float = pixmap.size().width() / pixmap.size().height()
             if aspect_ratio < 1.0:
                 self.lbl_preview.setFixedSize(300 * aspect_ratio, 300)
             else:
                 self.lbl_preview.setFixedSize(300, 300 / aspect_ratio)
-            work_mode = self.cmb_work_mode.currentIndex()
+            work_mode: WorkMode = self.cmb_work_mode.currentIndex()
             y_axis_values = get_plot_values(selected_file, work_mode)
             update_plot(self.plt_mips, y_axis_values)
             self.plt_mips.set_xlabel("Mips")
@@ -628,6 +720,9 @@ class MainWindow(QMainWindow):
 
 
 if __name__ == "__main__":
+    cachepath = os.path.dirname(__file__) + "/Saved/CachedData.json"
+    if allow_caching:
+        ensure_cache_version(cachepath)
     use_dark_mode = is_system_dark()
     bgColor = dark_color if use_dark_mode else light_color
     color_fg = light_color if use_dark_mode else dark_color
@@ -646,7 +741,6 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     window = MainWindow()
+
     window.show()
-
     app.exec()
-
