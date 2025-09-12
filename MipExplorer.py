@@ -391,7 +391,7 @@ class FileExplorer(QWidget):
         for entry in results_table_sorted:
             entry[0] = "{:.2f}".format(entry[0])
         results_table_sorted.insert(0, ("Mip0 Information", "Filepath", "Dimensions"))
-        time: str = datetime.date.today().strftime("%Y_%m_%d_%H_%M_%S")
+        time: str = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         try:
             with open(path + "\\MipStats_ " + time + ".csv", "w", newline="") as csvfile:
                 writer = csv.writer(csvfile, quoting=csv.QUOTE_ALL)
