@@ -16,6 +16,8 @@ Other features include:
 - Automatic suffix-based mode selection
 - Dark/Light UI mode depending on your system's settings
 
+For more information about how the Mip Explorer came to be, check out **[this blog post](https://haukethiessen.com/introducing-the-mip-explorer/)**.
+
 # FAQ:
 ## As an artist, do I need the Mip Explorer?
 The Mip Explorer is not primarily intended as a tool to be used regularly in a real production. It's meant to be a demonstration tool and illustrates some characteristics of mip maps that not all people are usually aware of.
@@ -52,3 +54,4 @@ freely, subject to the following restrictions:
 
 3. This notice may not be removed or altered from any source distribution.
 ```
+
