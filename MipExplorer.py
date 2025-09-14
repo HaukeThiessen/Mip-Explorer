@@ -83,7 +83,7 @@ CACHESIZE = 100
 
 # The version of the cache generation method. Change this if you change the way the cache is generated, to ensure
 # that the tool doesn't try to use outdated caches
-CACHEVERSION: int = 1
+CACHEVERSION: int = 2
 
 FILEBROWSER_PATH: str = os.path.join(os.getenv("WINDIR"), "explorer.exe")
 
@@ -103,24 +103,24 @@ class WorkMode(Enum):
 
 def calculate_deltas(filepath: str, b_all_mips: bool) -> list[list[float]]:
     try:
-        img1 = cv2.imread(filepath)
+        current_mip = cv2.imread(filepath, cv2.IMREAD_UNCHANGED)
 
-        shorter_edge = min(img1.shape[0], img1.shape[1])
+        shorter_edge = min(current_mip.shape[0], current_mip.shape[1])
         loops: int = 1
         if b_all_mips:
             loops = int(math.log2(shorter_edge))
         deltas: list[list[float]] = []
         for x in range(loops):
-            smaller_mip = img1
+            smaller_mip = current_mip
             smaller_mip = cv2.resize(smaller_mip, (0, 0), fx=0.5, fy=0.5)
             smaller_mip = cv2.resize(smaller_mip, (0, 0), fx=2.0, fy=2.0)
             diff = cv2.absdiff(
-                img1, smaller_mip
-            )  # nested array with x entries, each containing y pixels with 3 channels
-            diff_sum = np.sum(diff, axis=(0, 1))
-            diff_sum = np.divide(diff_sum, (img1.shape[:2][0] * img1.shape[:2][1]))
+                current_mip, smaller_mip
+            )  # nested array with x entries, each containing y pixels with 3-4 channels
+            diff_sum = np.sum(diff, axis = (0, 1))
+            diff_sum = np.divide(diff_sum, (current_mip.shape[:2][0] * current_mip.shape[:2][1]))
             deltas.append(diff_sum.tolist())
-            img1 = cv2.resize(img1, (0, 0), fx=0.5, fy=0.5)
+            current_mip = cv2.resize(current_mip, (0, 0), fx=0.5, fy=0.5)
         return deltas
     except:
         print("Failed to calculate deltas for " + filepath)
@@ -205,6 +205,8 @@ def update_plot(plot, y_axis_values: list[list[float]]):
         plot.plot(new_grid[0], "red")
         plot.plot(new_grid[1], "green")
         plot.plot(new_grid[2], "blue")
+        if new_grid.__len__() == 4:
+            plot.plot(new_grid[3], "gray")
     else:
         plot.plot(y_axis_values, color_fg)
 
@@ -218,7 +220,11 @@ def update_list(list_widget, y_axis_values: list[list[float]], work_mode: WorkMo
         for idx, value in enumerate(y_axis_values):
             caption += "  Mip " + "{:<5}".format(str(idx) + ", R: ") + "{:.3f}".format(value[0]) + "  \n"
             caption += "  Mip " + "{:<5}".format(str(idx) + ", G: ") + "{:.3f}".format(value[1]) + "  \n"
-            caption += "  Mip " + "{:<5}".format(str(idx) + ", B: ") + "{:.3f}".format(value[2]) + "  \n\n"
+            caption += "  Mip " + "{:<5}".format(str(idx) + ", B: ") + "{:.3f}".format(value[2]) + "  \n"
+            if(value.__len__() == 4):
+                caption += "  Mip " + "{:<5}".format(str(idx) + ", A: ") + "{:.3f}".format(value[3]) + "  \n\n"
+            else:
+                caption +="\n"
     else:
         for idx, value in enumerate(y_axis_values):
             caption += "  Mip " + "{:<5}".format(str(idx) + ":") + "{:.3f}".format(value) + "  \n"
@@ -234,15 +240,30 @@ def get_plot_values(filepath: str, work_mode: WorkMode) -> list[list[float]]:
 
 
 def convert_deltas_to_plot_values(deltas: list[list[float]], work_mode: WorkMode) -> list[list[float]] | list[float]:
-    channel_weights = (0.22, 0.72, 0.07) if work_mode == WorkMode.COLOR else (0.333, 0.333, 0.333)
     if work_mode == WorkMode.CHANNELS:
         return deltas
     else:
+        has_alpha_channel = deltas[0].__len__() == 4
+        if has_alpha_channel:
+            channel_weights = (0.165, 0.54, 0.052, 0.243) if work_mode == WorkMode.COLOR else (0.25, 0.25, 0.25, 0.25)
+        else:
+            channel_weights = (0.22, 0.72, 0.07) if work_mode == WorkMode.COLOR else (0.333, 0.333, 0.333)
+
         weighted_deltas: list[list[float]] = []
         for delta in deltas:
-            weighted_deltas.append(
-                delta[0] * channel_weights[0] + delta[1] * channel_weights[1] + delta[2] * channel_weights[2]
-            )
+            if has_alpha_channel:
+                weighted_deltas.append(
+                    delta[0] * channel_weights[0] +
+                    delta[1] * channel_weights[1] +
+                    delta[2] * channel_weights[2] +
+                    delta[3] * channel_weights[3]
+                )
+            else:
+                weighted_deltas.append(
+                    delta[0] * channel_weights[0] +
+                    delta[1] * channel_weights[1] +
+                    delta[2] * channel_weights[2]
+                )
     return weighted_deltas
 
 
@@ -678,7 +699,7 @@ class MainWindow(QMainWindow):
                 self.lbl_preview.setFixedSize(300 * aspect_ratio, 300)
             else:
                 self.lbl_preview.setFixedSize(300, 300 / aspect_ratio)
-            work_mode: WorkMode = self.cmb_work_mode.currentIndex()
+            work_mode: WorkMode = WorkMode(self.cmb_work_mode.currentIndex())
             y_axis_values = get_plot_values(selected_file, work_mode)
             update_plot(self.plt_mips, y_axis_values)
             self.plt_mips.set_xlabel("Mips")
