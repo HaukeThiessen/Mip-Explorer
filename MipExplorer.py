@@ -36,6 +36,7 @@ import subprocess
 import glob
 import csv
 import datetime
+import ctypes
 from pathlib import Path
 
 from enum import Enum
@@ -744,6 +745,12 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
+
+    # Taskbar Icon
+    app_ID: str = 'MipExplorer'
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_ID)
+    app.setWindowIcon(QIcon(app_icon))
+
     window = MainWindow()
 
     window.show()
