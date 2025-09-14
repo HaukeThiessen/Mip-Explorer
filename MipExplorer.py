@@ -136,12 +136,16 @@ def ensure_cache_version(cachepath: str):
             data = json.load(f)
         if "Version" in data:
             is_version_correct = CACHEVERSION == data["Version"]
+        if not is_version_correct:
+            try:
+                print("Cache generation version changed. Deleting the cache..")
+                os.remove(cachepath)
+            except:
+                pass
     except:
         print("Failed to find the cache file")
-        is_version_correct = False
-    if not is_version_correct:
-        print("Cache generation version changed. Deleting the cache..")
-        os.remove(cachepath)
+    open(cachepath, 'a').close()
+
 
 
 def try_getting_cached_results(filepath: str, cachepath: str) -> list[list[float]]:
