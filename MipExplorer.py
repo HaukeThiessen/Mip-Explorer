@@ -216,7 +216,7 @@ def update_list(list_widget, y_axis_values: list[list[float]], work_mode: WorkMo
         list_widget.setText("   -   ")
         return
     caption = ""
-    if work_mode == WorkMode.CHANNELS:
+    if work_mode == WorkMode.CHANNELS and type(y_axis_values[0]) == list:
         for idx, value in enumerate(y_axis_values):
             caption += "  Mip " + "{:<5}".format(str(idx) + ", R: ") + "{:.3f}".format(value[0]) + "  \n"
             caption += "  Mip " + "{:<5}".format(str(idx) + ", G: ") + "{:.3f}".format(value[1]) + "  \n"
@@ -240,30 +240,30 @@ def get_plot_values(filepath: str, work_mode: WorkMode) -> list[list[float]]:
 
 
 def convert_deltas_to_plot_values(deltas: list[list[float]], work_mode: WorkMode) -> list[list[float]] | list[float]:
-    if work_mode == WorkMode.CHANNELS:
+    if work_mode == WorkMode.CHANNELS or type(deltas[0]) != list:
         return deltas
     else:
-        has_alpha_channel = deltas[0].__len__() == 4
-        if has_alpha_channel:
-            channel_weights = (0.165, 0.54, 0.052, 0.243) if work_mode == WorkMode.COLOR else (0.25, 0.25, 0.25, 0.25)
-        else:
-            channel_weights = (0.22, 0.72, 0.07) if work_mode == WorkMode.COLOR else (0.333, 0.333, 0.333)
+      has_alpha_channel = deltas[0].__len__() == 4
+      if has_alpha_channel:
+          channel_weights = (0.165, 0.54, 0.052, 0.243) if work_mode == WorkMode.COLOR else (0.25, 0.25, 0.25, 0.25)
+      else:
+          channel_weights = (0.22, 0.72, 0.07) if work_mode == WorkMode.COLOR else (0.333, 0.333, 0.333)
 
-        weighted_deltas: list[list[float]] = []
-        for delta in deltas:
-            if has_alpha_channel:
-                weighted_deltas.append(
-                    delta[0] * channel_weights[0] +
-                    delta[1] * channel_weights[1] +
-                    delta[2] * channel_weights[2] +
-                    delta[3] * channel_weights[3]
-                )
-            else:
-                weighted_deltas.append(
-                    delta[0] * channel_weights[0] +
-                    delta[1] * channel_weights[1] +
-                    delta[2] * channel_weights[2]
-                )
+      weighted_deltas: list[list[float]] = []
+      for delta in deltas:
+          if has_alpha_channel:
+              weighted_deltas.append(
+                  delta[0] * channel_weights[0] +
+                  delta[1] * channel_weights[1] +
+                  delta[2] * channel_weights[2] +
+                  delta[3] * channel_weights[3]
+              )
+          else:
+              weighted_deltas.append(
+                  delta[0] * channel_weights[0] +
+                  delta[1] * channel_weights[1] +
+                  delta[2] * channel_weights[2]
+              )
     return weighted_deltas
 
 
@@ -402,11 +402,12 @@ class FileExplorer(QWidget):
             pixmap = QPixmap(Path(files[i]))
             if is_mip_mappable(pixmap):
                 deltas: list[list[float]] = calculate_deltas(files[i], False)
-                values: list[float] | list[list[float]] = convert_deltas_to_plot_values(deltas, WorkMode.COLOR)
+                values: list[float] | list[list[float]] = convert_deltas_to_plot_values(deltas, WorkMode.DATA)
                 new_entry = [
                     values[0],
                     files[i].__str__(),
                     pixmap.width().__str__() + "x" + pixmap.height().__str__(),
+                    pixmap.hasAlpha()
                 ]
                 results_table.append(new_entry)
             progress.setValue(i)
@@ -416,7 +417,7 @@ class FileExplorer(QWidget):
         results_table_sorted = sorted(results_table)
         for entry in results_table_sorted:
             entry[0] = "{:.2f}".format(entry[0])
-        results_table_sorted.insert(0, ("Mip0 Information", "Filepath", "Dimensions"))
+        results_table_sorted.insert(0, ("Mip0 Information", "Filepath", "Dimensions", "has Alpha"))
         time: str = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         try:
             with open(path + "\\MipStats_ " + time + ".csv", "w", newline="") as csvfile:
@@ -424,6 +425,7 @@ class FileExplorer(QWidget):
                 writer.writerows(results_table_sorted)
         except:
             print("Failed to write Scan Results to csv file.")
+        app.alert(window)
         self.btn_batch.setText(self.scan_directory_label)
         self.btn_batch.setEnabled(True)
 
@@ -434,6 +436,9 @@ class FileExplorer(QWidget):
             subprocess.run([FILEBROWSER_PATH, "/select,", selected_file_path])
         else:
             self.jump_to_path(selected_file_path)
+
+    def open_parent_directory(self):
+        self.jump_to_path(str(Path(self.file_model.rootPath()).parent))
 
     def on_clicked(self, index):
         path = self.dir_model.fileInfo(index).absoluteFilePath()
@@ -457,10 +462,11 @@ class FileExplorer(QWidget):
             self.list_view.setRootIndex(self.file_model.setRootPath(target_path))
             target_path = os.path.dirname(target_path)
         if os.path.isdir(target_path):
-            self.tree_view.scrollTo(self.dir_model.index(target_path))
-            self.tree_view.expand(self.dir_model.index(target_path))
-            self.tree_view.setCurrentIndex(self.dir_model.index(target_path))
             self.le_address.setText(target_path)
+            new_index = self.dir_model.index(target_path)
+            self.tree_view.scrollTo(new_index)
+            self.tree_view.expand(new_index)
+            self.tree_view.setCurrentIndex(new_index)
 
 
 class WorkModeSettingsDialog(QDialog):
@@ -671,10 +677,22 @@ class MainWindow(QMainWindow):
         file_explorer.setSizeConstraint(QLayout.SetMaximumSize)
         self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         file_explorer.sizeConstraint = 100
+        self.lst_file_list.installEventFilter(self)
 
         widget = QWidget()
         widget.setLayout(main_layout)
         self.setCentralWidget(widget)
+
+    def eventFilter(self, widget, event):
+        if (event.type() == QEvent.KeyPress and
+            widget is self.lst_file_list):
+            key = event.key()
+            if key == Qt.Key_Return or key == Qt.Key_Right:
+                self.lst_file_list.open_current_directory()
+                return True
+            if key == Qt.Key_Left:
+                self.lst_file_list.open_parent_directory()
+        return QWidget.eventFilter(self, widget, event)
 
     def open_work_mode_settings(self):
         dialog = WorkModeSettingsDialog()
