@@ -354,9 +354,9 @@ class FileExplorer(QWidget):
         self.btn_batch = QPushButton(self.scan_directory_label)
         self.btn_batch.setToolTip("Calculates Mip0's information density for all textures in this directory and sub-directories.\n"
                                   "Stores the sorted results in a csv file.\n"
-                                  "The Work mode is set to color for now, regardless of suffix.")
-        self.list_view.setMinimumWidth(150)
-        self.tree_view.setMinimumWidth(200)
+                                  "The work mode is determined automatically, and falls back to DATA if the mode can't be derived from the suffix.")
+        self.list_view.setMinimumWidth(15)
+        self.tree_view.setMinimumWidth(15)
         self.splitter.setChildrenCollapsible(False)
         h_layout.addWidget(self.splitter)
         self.splitter.addWidget(self.tree_view)
@@ -415,7 +415,10 @@ class FileExplorer(QWidget):
             pixmap = QPixmap(Path(files[i]))
             if is_mip_mappable(pixmap):
                 deltas: list[list[float]] = calculate_deltas(files[i], False)
-                values: list[float] | list[list[float]] = convert_deltas_to_plot_values(deltas, WorkMode.DATA)
+                work_mode = get_automatic_work_mode(files[i])
+                if work_mode == WorkMode.MAX or work_mode == WorkMode.CHANNELS:
+                    work_mode = WorkMode.DATA
+                values: list[float] | list[list[float]] = convert_deltas_to_plot_values(deltas, work_mode)
                 new_entry = [
                     values[0],
                     files[i].__str__(),
