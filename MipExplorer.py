@@ -303,10 +303,16 @@ class InfoPanel(QWidget):
         layout = QHBoxLayout(self)
         lbl_resolution = QLabel("Resolution:")
         lbl_resolution.setAlignment(Qt.AlignmentFlag.AlignRight)
+
         self.lbl_res_value = QLabel("")
+        self.lbl_res_value.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
         lbl_size = QLabel("Size:")
-        self.lbl_size_value = QLabel()
         lbl_size.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+        self.lbl_size_value = QLabel()
+        self.lbl_size_value.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
         layout.addWidget(lbl_resolution)
         layout.addWidget(self.lbl_res_value)
         layout.addWidget(lbl_size)
@@ -339,24 +345,30 @@ class FileExplorer(QWidget):
         QWidget.__init__(self, *args, **kwargs)
         v_layout = QVBoxLayout(self)
         h_layout = QHBoxLayout()
-        list_layout = QVBoxLayout()
+        lt_list = QVBoxLayout()
         self.le_address = QLineEdit()
         self.tree_view = QTreeView()
         self.list_view = QListView()
+        self.splitter = QSplitter()
+        self.list_container = QWidget()
         self.btn_batch = QPushButton(self.scan_directory_label)
         self.btn_batch.setToolTip("Calculates Mip0's information density for all textures in this directory and sub-directories.\n"
                                   "Stores the sorted results in a csv file.\n"
                                   "The Work mode is set to color for now, regardless of suffix.")
         self.list_view.setMinimumWidth(150)
         self.tree_view.setMinimumWidth(200)
-        h_layout.addWidget(self.tree_view)
-        h_layout.addLayout(list_layout)
-        list_layout.addWidget(self.list_view)
-        list_layout.addWidget(self.btn_batch)
+        self.splitter.setChildrenCollapsible(False)
+        h_layout.addWidget(self.splitter)
+        self.splitter.addWidget(self.tree_view)
+        self.splitter.addWidget(self.list_container)
+        self.list_container.setLayout(lt_list)
+        lt_list.addWidget(self.list_view)
+        lt_list.addWidget(self.btn_batch)
         v_layout.addWidget(self.le_address)
         v_layout.addLayout(h_layout)
         path = QDir.rootPath()
         path = ""
+
         self.dir_model = QFileSystemModel()
         self.dir_model.setRootPath(path)
         self.dir_model.setFilter(QDir.NoDotAndDotDot | QDir.AllDirs)
@@ -364,6 +376,7 @@ class FileExplorer(QWidget):
         self.file_model = QFileSystemModel()
         self.file_model.setFilter(QDir.NoDotAndDotDot | QDir.Files | QDir.AllDirs)
         self.file_model.setNameFilters(SUPPORTEDFORMATS)
+
         self.tree_view.setModel(self.dir_model)
         self.tree_view.hideColumn(1)
         self.tree_view.hideColumn(2)
@@ -637,61 +650,72 @@ class MainWindow(QMainWindow):
         self.btn_work_mode_settings.setToolTip(self.tr("Change the suffixes to search for when setting the work mode"))
         self.btn_work_mode_settings.clicked.connect(self.open_work_mode_settings)
         self.btn_manual_update.clicked.connect(self.handle_update)
-        self.lst_file_list = FileExplorer()
-        self.lst_file_list.file_changed.connect(self.handle_file_changed)
-        self.numbers_list_scroll = QScrollArea()
+        self.file_explorer = FileExplorer()
+        self.file_explorer.file_changed.connect(self.handle_file_changed)
+        self.scrl_numbers_list = QScrollArea()
         self.numbers_list = QLabel("             ")
-        self.numbers_list_scroll.setWidget(self.numbers_list)
-        self.numbers_list_scroll.setWidgetResizable(True)
+        self.scrl_numbers_list.setWidget(self.numbers_list)
+        self.scrl_numbers_list.setWidgetResizable(True)
 
         self.texture_info = InfoPanel()
+
         self.lbl_preview = QLabel(self)
         self.lbl_preview.setScaledContents(True)
         self.lbl_preview.setFixedSize(300, 300)
         self.pixmap = QPixmap("")
 
         self.lbl_preview.setPixmap(self.pixmap)
+        splitter = QSplitter()
+        results_panel = QWidget()
+        details_panel = QWidget()
+        self.scrl_preview = QScrollArea()
 
         # Layouts
-        main_layout = QHBoxLayout()
-        file_explorer = QVBoxLayout()
-        details_panel = QVBoxLayout()
-        results_panel = QHBoxLayout()
-        details_options = QHBoxLayout()
+        lt_main = QHBoxLayout()
+        lt_results = QHBoxLayout()
+        lt_details_options = QHBoxLayout()
+        lt_details = QVBoxLayout()
 
         # Organizing widgets in layouts
-        results_panel.addWidget(self.canvas, 5)
-        results_panel.addWidget(self.numbers_list_scroll, 1)
-        details_panel.addLayout(results_panel)
-        details_panel.addWidget(self.texture_info)
-        details_panel.addWidget(self.lbl_preview)
-        details_panel.addLayout(details_options)
-        details_options.addWidget(self.btn_manual_update)
-        details_options.addWidget(self.cmb_work_mode)
-        details_options.addStretch(3)
-        details_options.addWidget(self.btn_work_mode_settings)
-        file_explorer.addWidget(self.lst_file_list)
-        main_layout.addLayout(file_explorer, 2)
-        main_layout.addLayout(details_panel, 10)
+        lt_results.addWidget(self.canvas, 5)
+        lt_results.addWidget(self.scrl_numbers_list, 1)
+        results_panel.setLayout(lt_results)
 
-        file_explorer.setSizeConstraint(QLayout.SetMaximumSize)
+        self.scrl_preview.setWidget(self.lbl_preview)
+        self.scrl_preview.setWidgetResizable(True)
+        details_panel.setLayout(lt_details)
+
+        lt_details.addWidget(results_panel)
+        lt_details.addWidget(self.texture_info)
+        lt_details.addWidget(self.scrl_preview)
+        lt_details.addLayout(lt_details_options)
+
+        lt_details_options.addWidget(self.btn_manual_update)
+        lt_details_options.addWidget(self.cmb_work_mode)
+        lt_details_options.addStretch(3)
+        lt_details_options.addWidget(self.btn_work_mode_settings)
+
+        lt_main.addWidget(splitter)
+        splitter.addWidget(self.file_explorer)
+        splitter.addWidget(details_panel)
+
         self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        file_explorer.sizeConstraint = 100
-        self.lst_file_list.installEventFilter(self)
+
+        self.file_explorer.installEventFilter(self)
 
         widget = QWidget()
-        widget.setLayout(main_layout)
+        widget.setLayout(lt_main)
         self.setCentralWidget(widget)
 
     def eventFilter(self, widget, event):
         if (event.type() == QEvent.KeyPress and
-            widget is self.lst_file_list):
+            widget is self.file_explorer):
             key = event.key()
             if key == Qt.Key_Return or key == Qt.Key_Right:
-                self.lst_file_list.open_current_directory()
+                self.file_explorer.open_current_directory()
                 return True
             if key == Qt.Key_Left:
-                self.lst_file_list.open_parent_directory()
+                self.file_explorer.open_parent_directory()
         return QWidget.eventFilter(self, widget, event)
 
     def open_work_mode_settings(self):
@@ -758,7 +782,7 @@ class MainWindow(QMainWindow):
                 else:
                     fname = str(url.toLocalFile())
             self.fname = fname
-            self.lst_file_list.jump_to_path(self.fname)
+            self.file_explorer.jump_to_path(self.fname)
         else:
             e.ignore()
 
