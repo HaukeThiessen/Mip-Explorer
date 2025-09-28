@@ -653,10 +653,11 @@ class Settings:
             with open(Settings.settings_path, "w", encoding="utf-8") as f:
                 json.dump(
                     {
-                        "color_affixes":    Settings.color_affixes,
-                        "data_affixes":     Settings.data_affixes,
-                        "channels_affixes": Settings.channels_affixes,
-                        "normal_affixes":   Settings.normal_affixes
+                        "color_affixes":            Settings.color_affixes,
+                        "data_affixes":             Settings.data_affixes,
+                        "channels_affixes":         Settings.channels_affixes,
+                        "normal_affixes":           Settings.normal_affixes,
+                        "use_automatic_work_mode" : Settings.use_automatic_work_mode
                     },
                     f,
                     ensure_ascii=False,
