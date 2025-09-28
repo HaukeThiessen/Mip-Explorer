@@ -120,8 +120,6 @@ def calculate_deltas(filepath: str, b_all_mips: bool, b_normalize_mips: bool = F
             current_mip = current_mip - [0.5, 0.5, 0.0]
             current_mip = current_mip * [2.0, 2.0, 1.0]
             current_mip = normalize_RGB(current_mip)
-            vec = current_mip[16][16]
-            print(math.sqrt(vec[0]**2 + vec[1]**2 + vec[2]**2))
         shorter_edge = min(current_mip.shape[0], current_mip.shape[1])
         loops: int = 1
         if b_all_mips:
@@ -138,8 +136,6 @@ def calculate_deltas(filepath: str, b_all_mips: bool, b_normalize_mips: bool = F
             if b_normalize_mips:
                 dot_products = np.sum(current_mip * smaller_mip, axis=-1)
                 diff_sum = np.sum(dot_products, axis = (0, 1))
-                print(current_mip[0][0])
-                print(math.sqrt(current_mip[0][0][0]**2 + current_mip[0][0][1]**2+ current_mip[0][0][2]**2))
                 diff_sum = np.divide(diff_sum, num_pixels)
                 diff_sum = 1.0 - diff_sum
                 deltas.append(diff_sum)
@@ -265,8 +261,10 @@ def update_list(list_widget, y_axis_values: list[list[float]], work_mode: WorkMo
     list_widget.setText(caption)
 
 
-def get_plot_values(filepath: str, work_mode: WorkMode) -> list[list[float]]:
-    deltas = try_getting_cached_results(filepath, cachepath, work_mode)
+def get_plot_values(filepath: str, work_mode: WorkMode, force_update: bool = False) -> list[list[float]]:
+    deltas = []
+    if not force_update:
+        deltas = try_getting_cached_results(filepath, cachepath, work_mode)
     if not deltas:
         deltas = calculate_deltas(filepath, True, work_mode == WorkMode.NORMAL)
         save_cached_results(deltas, filepath, cachepath, work_mode)
@@ -713,14 +711,14 @@ class MainWindow(QMainWindow):
         self.canvas.draw()
 
         # Widgets
-        self.btn_manual_update = QPushButton("🔃 Refresh")
+        self.btn_manual_update = QPushButton("🔃 R\u0332efresh")
         self.cmb_work_mode = QComboBox()
-        self.cmb_work_mode.addItems(["🎨 Color", "📅 Data", "🚦 Channels", "⬆️ Normal"])
+        self.cmb_work_mode.addItems(["🎨 C\u0332olor", "📅 D\u0332ata", "🚦 Cha\u0332nnels", "⬆️ N\u0332ormal"])
         self.cmb_work_mode.currentIndexChanged.connect(self.handle_update)
-        self.btn_work_mode_settings = SquareButton("⚙️ Settings")
+        self.btn_work_mode_settings = SquareButton("⚙️ S\u0332ettings")
         self.btn_work_mode_settings.setToolTip(self.tr("Change the affixes to search for when setting the work mode"))
         self.btn_work_mode_settings.clicked.connect(self.open_work_mode_settings)
-        self.btn_manual_update.clicked.connect(self.handle_update)
+        self.btn_manual_update.clicked.connect(self.force_update)
         self.file_explorer = FileExplorer()
         self.file_explorer.file_changed.connect(self.handle_file_changed)
         self.scrl_numbers_list = QScrollArea()
@@ -772,21 +770,39 @@ class MainWindow(QMainWindow):
 
         self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        self.file_explorer.installEventFilter(self)
+        self.installEventFilter(self)
 
         widget = QWidget()
         widget.setLayout(lt_main)
         self.setCentralWidget(widget)
 
     def eventFilter(self, widget, event):
-        if (event.type() == QEvent.KeyPress and
-            widget is self.file_explorer):
+        if event.type() == QEvent.KeyPress:
             key = event.key()
-            if key == Qt.Key_Return or key == Qt.Key_Right:
-                self.file_explorer.open_current_directory()
+            if widget is self.file_explorer:
+                if key == Qt.Key_Return or key == Qt.Key_Right:
+                    self.file_explorer.open_current_directory()
+                    return True
+                if key == Qt.Key_Left:
+                    self.file_explorer.open_parent_directory()
+                    return True
+            if key == Qt.Key_R:
+                self.force_update()
                 return True
-            if key == Qt.Key_Left:
-                self.file_explorer.open_parent_directory()
+            if key == Qt.Key_C:
+                self.cmb_work_mode.setCurrentIndex(0)
+                return True
+            if key == Qt.Key_D:
+                self.cmb_work_mode.setCurrentIndex(1)
+                return True
+            if key == Qt.Key_A:
+                self.cmb_work_mode.setCurrentIndex(2)
+                return True
+            if key == Qt.Key_N:
+                self.cmb_work_mode.setCurrentIndex(3)
+                return True
+            if key == Qt.Key_S:
+                self.open_work_mode_settings()
         return QWidget.eventFilter(self, widget, event)
 
     def open_work_mode_settings(self):
@@ -800,7 +816,10 @@ class MainWindow(QMainWindow):
             self.cmb_work_mode.setCurrentIndex(automatic_work_mode.value)
         self.handle_update()
 
-    def handle_update(self):
+    def force_update(self):
+        self.handle_update(True)
+
+    def handle_update(self, force_update: bool = False):
         if not os.path.isfile(selected_file):
             return
         pixmap = QPixmap(selected_file)
@@ -813,7 +832,7 @@ class MainWindow(QMainWindow):
             else:
                 self.lbl_preview.setFixedSize(300, 300 / aspect_ratio)
             work_mode: WorkMode = WorkMode(self.cmb_work_mode.currentIndex())
-            y_axis_values = get_plot_values(selected_file, work_mode)
+            y_axis_values = get_plot_values(selected_file, work_mode, force_update)
             update_plot(self.plt_mips, y_axis_values)
             self.plt_mips.set_xlabel("Mips")
             self.plt_mips.set_ylabel("Information per Pixel")
