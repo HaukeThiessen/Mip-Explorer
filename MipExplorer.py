@@ -83,7 +83,7 @@ CACHESIZE = 100
 
 # The version of the cache generation method. Change this if you change the way the cache is generated, to ensure
 # that the tool doesn't try to use outdated caches
-CACHEVERSION: int = 2
+CACHEVERSION: int = 3
 
 FILEBROWSER_PATH: str = os.path.join(os.getenv("WINDIR"), "explorer.exe")
 
@@ -98,13 +98,30 @@ class WorkMode(Enum):
     COLOR = 0
     DATA = 1
     CHANNELS = 2
-    MAX = 3
+    NORMAL = 3
+    MAX = 4
 
 
-def calculate_deltas(filepath: str, b_all_mips: bool) -> list[list[float]]:
+def normalize_RGB(vec):
+    length = np.sqrt(vec[:,:,0]**2 + vec[:,:,1]**2 + vec[:,:,2]**2)
+    length = np.clip(length, a_min=0.0001, a_max=10.0)
+    vec[:,:,0] = vec[:,:,0] / length
+    vec[:,:,1] = vec[:,:,1] / length
+    vec[:,:,2] = vec[:,:,2] / length
+    return vec
+
+
+def calculate_deltas(filepath: str, b_all_mips: bool, b_normalize_mips: bool = False) -> list[list[float]]:
     try:
         current_mip = cv2.imread(filepath, cv2.IMREAD_UNCHANGED)
-
+        current_mip = current_mip.astype(float) / 255
+        if b_normalize_mips:
+            current_mip = current_mip[:,:,:3]
+            current_mip = current_mip - [0.5, 0.5, 0.0]
+            current_mip = current_mip * [2.0, 2.0, 1.0]
+            current_mip = normalize_RGB(current_mip)
+            vec = current_mip[16][16]
+            print(math.sqrt(vec[0]**2 + vec[1]**2 + vec[2]**2))
         shorter_edge = min(current_mip.shape[0], current_mip.shape[1])
         loops: int = 1
         if b_all_mips:
@@ -113,14 +130,25 @@ def calculate_deltas(filepath: str, b_all_mips: bool) -> list[list[float]]:
         for x in range(loops):
             smaller_mip = current_mip
             smaller_mip = cv2.resize(smaller_mip, (0, 0), fx=0.5, fy=0.5)
+            if b_normalize_mips:
+                smaller_mip = normalize_RGB(smaller_mip)
+            next_mip = smaller_mip
             smaller_mip = cv2.resize(smaller_mip, (0, 0), fx=2.0, fy=2.0)
-            diff = cv2.absdiff(
-                current_mip, smaller_mip
-            )  # nested array with x entries, each containing y pixels with 3-4 channels
-            diff_sum = np.sum(diff, axis = (0, 1))
-            diff_sum = np.divide(diff_sum, (current_mip.shape[:2][0] * current_mip.shape[:2][1]))
-            deltas.append(diff_sum.tolist())
-            current_mip = cv2.resize(current_mip, (0, 0), fx=0.5, fy=0.5)
+            num_pixels = current_mip.__len__() * current_mip[0].__len__()
+            if b_normalize_mips:
+                dot_products = np.sum(current_mip * smaller_mip, axis=-1)
+                diff_sum = np.sum(dot_products, axis = (0, 1))
+                print(current_mip[0][0])
+                print(math.sqrt(current_mip[0][0][0]**2 + current_mip[0][0][1]**2+ current_mip[0][0][2]**2))
+                diff_sum = np.divide(diff_sum, num_pixels)
+                diff_sum = 1.0 - diff_sum
+                deltas.append(diff_sum)
+            else:
+                diff = cv2.absdiff(current_mip, smaller_mip) # nested array with x entries, each containing y pixels with 3-4 channels
+                diff_sum = np.sum(diff, axis = (0, 1))
+                diff_sum = np.divide(diff_sum, num_pixels)
+                deltas.append(diff_sum.tolist())
+            current_mip = next_mip
         return deltas
     except:
         print("Failed to calculate deltas for " + filepath)
@@ -148,24 +176,29 @@ def ensure_cache_version(cachepath: str):
     open(cachepath, 'a').close()
 
 
+def get_results_category(work_mode: WorkMode):
+    return "Results_Normal" if work_mode == WorkMode.NORMAL else "Results"
 
-def try_getting_cached_results(filepath: str, cachepath: str) -> list[list[float]]:
+
+def try_getting_cached_results(filepath: str, cachepath: str, work_mode: WorkMode) -> list[list[float]]:
+    category: str = get_results_category
     if not allow_caching:
         return
     try:
         with open(cachepath, "r", encoding="utf-8") as file:
             data = json.load(file)
-        if "Results" in data:
-            if filepath in data["Results"]:
+        if category in data:
+            if filepath in data[category]:
                 last_time_modified = os.path.getmtime(filepath)
-                cached_last_time_modified = data["Results"][filepath][1]
+                cached_last_time_modified = data[category][filepath][1]
                 if last_time_modified <= cached_last_time_modified:
-                    return data["Results"][filepath][0]
+                    return data[category][filepath][0]
     except:
         print("No cached results found")
 
 
-def save_cached_results(y_axis_values: list[list[float]], filepath: str, cachepath: str):
+def save_cached_results(y_axis_values: list[list[float]], filepath: str, cachepath: str, work_mode: WorkMode):
+    category: str = get_results_category(work_mode)
     cache_entry = {filepath: (y_axis_values, os.path.getmtime(filepath))}
     output_file_path = Path(cachepath)
     if not output_file_path.exists:
@@ -176,15 +209,16 @@ def save_cached_results(y_axis_values: list[list[float]], filepath: str, cachepa
             try:
                 data = json.load(file)
             except:
+                print("Failed to find an existing cache file. A new one will be created")
                 data = dict()
-            if "Results" in data:
-                data["Results"].update(cache_entry)
+            if category in data:
+                data[category].update(cache_entry)
             else:
-                cache = {"Results": cache_entry}
+                cache = {category: cache_entry}
                 data.update(cache)
 
-            if data["Results"].__len__() > CACHESIZE:
-                data["Results"].popitem(False)
+            if data[category].__len__() > CACHESIZE:
+                data[category].popitem(False)
 
             if "Version" in data:
                 data["Version"] = CACHEVERSION
@@ -232,49 +266,61 @@ def update_list(list_widget, y_axis_values: list[list[float]], work_mode: WorkMo
 
 
 def get_plot_values(filepath: str, work_mode: WorkMode) -> list[list[float]]:
-    deltas = try_getting_cached_results(filepath, cachepath)
+    deltas = try_getting_cached_results(filepath, cachepath, work_mode)
     if not deltas:
-        deltas = calculate_deltas(filepath, True)
-        save_cached_results(deltas, filepath, cachepath)
+        deltas = calculate_deltas(filepath, True, work_mode == WorkMode.NORMAL)
+        save_cached_results(deltas, filepath, cachepath, work_mode)
     return convert_deltas_to_plot_values(deltas, work_mode)
 
 
 def convert_deltas_to_plot_values(deltas: list[list[float]], work_mode: WorkMode) -> list[list[float]] | list[float]:
     if work_mode == WorkMode.CHANNELS or type(deltas[0]) != list:
         return deltas
-    else:
-      has_alpha_channel = deltas[0].__len__() == 4
-      if has_alpha_channel:
-          channel_weights = (0.165, 0.54, 0.052, 0.243) if work_mode == WorkMode.COLOR else (0.25, 0.25, 0.25, 0.25)
-      else:
-          channel_weights = (0.22, 0.72, 0.07) if work_mode == WorkMode.COLOR else (0.333, 0.333, 0.333)
 
-      weighted_deltas: list[list[float]] = []
-      for delta in deltas:
-          if has_alpha_channel:
-              weighted_deltas.append(
-                  delta[0] * channel_weights[0] +
-                  delta[1] * channel_weights[1] +
-                  delta[2] * channel_weights[2] +
-                  delta[3] * channel_weights[3]
-              )
-          else:
-              weighted_deltas.append(
-                  delta[0] * channel_weights[0] +
-                  delta[1] * channel_weights[1] +
-                  delta[2] * channel_weights[2]
-              )
+    has_alpha_channel = deltas[0].__len__() == 4
+
+    if work_mode == WorkMode.NORMAL:
+        angle_deltas: list[list[float]] = []
+        for delta in deltas:
+            angle_deltas.append(delta[2])
+        return angle_deltas
+
+    if has_alpha_channel:
+        channel_weights = (0.165, 0.54, 0.052, 0.243) if work_mode == WorkMode.COLOR else (0.25, 0.25, 0.25, 0.25)
+    else:
+        channel_weights = (0.22, 0.72, 0.07) if work_mode == WorkMode.COLOR else (0.333, 0.333, 0.333)
+
+    weighted_deltas: list[list[float]] = []
+    for delta in deltas:
+        if has_alpha_channel:
+            weighted_deltas.append(
+                delta[0] * channel_weights[0] +
+                delta[1] * channel_weights[1] +
+                delta[2] * channel_weights[2] +
+                delta[3] * channel_weights[3]
+            )
+        else:
+            weighted_deltas.append(
+                delta[0] * channel_weights[0] +
+                delta[1] * channel_weights[1] +
+                delta[2] * channel_weights[2]
+            )
     return weighted_deltas
 
 
 def get_automatic_work_mode(filePath: str) -> WorkMode:
+    if Settings.use_automatic_work_mode == False:
+        return WorkMode.MAX
+
     base_name = os.path.splitext(os.path.basename(filePath))[0]
-    if any(base_name.endswith(suffix) for suffix in Settings.data_suffixes):
-        return WorkMode.DATA
-    if any(base_name.endswith(suffix) for suffix in Settings.color_suffixes):
+    if any(base_name.endswith(affix) for affix in Settings.color_affixes) or any(base_name.startswith(affix) for affix in Settings.color_affixes):
         return WorkMode.COLOR
-    if any(base_name.endswith(suffix) for suffix in Settings.channels_suffixes):
+    if any(base_name.endswith(affix) for affix in Settings.data_affixes) or any(base_name.startswith(affix) for affix in Settings.data_affixes):
+        return WorkMode.DATA
+    if any(base_name.endswith(affix) for affix in Settings.channels_affixes) or any(base_name.startswith(affix) for affix in Settings.channels_affixes):
         return WorkMode.CHANNELS
+    if any(base_name.endswith(affix) for affix in Settings.normal_affixes) or any(base_name.startswith(affix) for affix in Settings.normal_affixes):
+        return WorkMode.NORMAL
     return WorkMode.MAX
 
 
@@ -354,7 +400,7 @@ class FileExplorer(QWidget):
         self.btn_batch = QPushButton(self.scan_directory_label)
         self.btn_batch.setToolTip("Calculates Mip0's information density for all textures in this directory and sub-directories.\n"
                                   "Stores the sorted results in a csv file.\n"
-                                  "The work mode is determined automatically, and falls back to DATA if the mode can't be derived from the suffix.")
+                                  "The work mode is determined automatically, and falls back to DATA if the mode can't be derived from the affix.")
         self.list_view.setMinimumWidth(15)
         self.tree_view.setMinimumWidth(15)
         self.splitter.setChildrenCollapsible(False)
@@ -423,7 +469,8 @@ class FileExplorer(QWidget):
                     values[0],
                     files[i].__str__(),
                     pixmap.width().__str__() + "x" + pixmap.height().__str__(),
-                    pixmap.hasAlpha()
+                    pixmap.hasAlpha(),
+                    work_mode.__str__()[9:]
                 ]
                 results_table.append(new_entry)
             progress.setValue(i)
@@ -433,7 +480,7 @@ class FileExplorer(QWidget):
         results_table_sorted = sorted(results_table)
         for entry in results_table_sorted:
             entry[0] = "{:.2f}".format(entry[0])
-        results_table_sorted.insert(0, ("Mip0 Information", "Filepath", "Dimensions", "has Alpha"))
+        results_table_sorted.insert(0, ("Mip0 Information", "Filepath", "Dimensions", "has Alpha", "Mode"))
         time: str = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         try:
             with open(path + "\\MipStats_ " + time + ".csv", "w", newline="") as csvfile:
@@ -498,67 +545,82 @@ class WorkModeSettingsDialog(QDialog):
         self.button_box = QDialogButtonBox(QBtn)
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
-        layout = QFormLayout()
+        layout_lists = QFormLayout()
+        layout_main = QVBoxLayout()
 
-        lbl_data_prefixes = QLabel("Data")
-        lbl_data_prefixes.setToolTip(
+        lbl_color_affixes = QLabel("Color: ")
+        lbl_color_affixes.setToolTip(
             self.tr(
-                "Files using any of these suffixes are interpreted as data textures.\nWhen calculating the luminance differences between pixels, all channels have the same weight."
-            )
-        )
-        self.le_data_prefixes = QLineEdit(", ".join(str(x) for x in Settings.data_suffixes))
-        self.le_data_prefixes.setToolTip(
-            self.tr("Separate suffixes with a comma. Whitespaces are removed automatically.")
-        )
+                "Files using any of these affixes are interpreted as color textures.\n"
+                "When calculating the luminance differences between pixels, the green channel has the biggest impact."))
 
-        lbl_color_prefixes = QLabel("Color")
-        lbl_color_prefixes.setToolTip(
-            self.tr(
-                "Files using any of these suffixes are interpreted as color textures.\nWhen calculating the luminance differences between pixels, the green channel has the biggest impact."
-            )
-        )
-        self.le_color_prefixes = QLineEdit(", ".join(str(x) for x in Settings.color_suffixes))
-        self.le_color_prefixes.setToolTip(
-            self.tr("Separate suffixes with a comma. Whitespaces are removed automatically.")
-        )
+        self.le_color_affixes = QLineEdit(", ".join(str(x) for x in Settings.color_affixes))
+        self.le_color_affixes.setToolTip(
+            self.tr("Separate affixes with a comma. Whitespaces are removed automatically."))
 
-        lbl_channels_prefixes = QLabel("Channels")
-        lbl_channels_prefixes.setToolTip(
-            self.tr(
-                "Files using any of these suffixes are interpreted as packed textures.\nThe differences between the mip maps are calculated for each channel separately."
-            )
-        )
-        self.le_channels_prefixes = QLineEdit(", ".join(str(x) for x in Settings.channels_suffixes))
-        self.le_channels_prefixes.setToolTip(
-            self.tr("Separate suffixes with a comma. Whitespaces are removed automatically.")
-        )
+        lbl_data_affixes = QLabel("Data: ")
+        lbl_data_affixes.setToolTip(
+            self.tr("Files using any of these affixes are interpreted as data textures.\n"
+                    "When calculating the luminance differences between pixels, all channels have the same weight."))
 
-        layout.addWidget(lbl_data_prefixes)
-        layout.addWidget(self.le_data_prefixes)
-        layout.addWidget(lbl_color_prefixes)
-        layout.addWidget(self.le_color_prefixes)
-        layout.addWidget(lbl_channels_prefixes)
-        layout.addWidget(self.le_channels_prefixes)
-        layout.addWidget(self.button_box)
-        self.setLayout(layout)
+        self.le_data_affixes = QLineEdit(", ".join(str(x) for x in Settings.data_affixes))
+        self.le_data_affixes.setToolTip(
+            self.tr("Separate affixes with a comma. Whitespaces are removed automatically."))
 
-    def clean_suffixes_list(self, suffixes: list[str]):
-        for suffix in suffixes:
-            suffix.strip()
-        return [suffix for suffix in suffixes if suffix != ""]
+        lbl_channels_affixes = QLabel("Channels: ")
+        lbl_channels_affixes.setToolTip(
+            self.tr("Files using any of these affixes are interpreted as packed textures.\n"
+                    "The differences between the mip maps are calculated for each channel separately."))
+
+        self.le_channels_affixes = QLineEdit(", ".join(str(x) for x in Settings.channels_affixes))
+        self.le_channels_affixes.setToolTip(self.tr("Separate affixes with a comma. Whitespaces are removed automatically."))
+
+        lbl_normal_affixes = QLabel("Normal: ")
+        lbl_normal_affixes.setToolTip(
+            self.tr("Files using any of these affixes are interpreted as normal maps.\n"
+                    "The vectors in each mip get normalized, and the z component is used for comparisons"))
+
+        self.le_normal_affixes = QLineEdit(", ".join(str(x) for x in Settings.normal_affixes))
+        self.le_normal_affixes.setToolTip(
+            self.tr("Separate affixes with a comma. Whitespaces are removed automatically."))
+
+        self.chk_automatic_work_mode = QCheckBox("Set work mode automatically")
+        self.chk_automatic_work_mode.setChecked(Settings.use_automatic_work_mode)
+        self.chk_automatic_work_mode.setToolTip(self.tr("Change the work mode if an affix is found in the file name"
+                                                        "that matches one of the mode affixes defined in the settings"))
+
+        layout_lists.addRow(lbl_color_affixes,    self.le_color_affixes)
+        layout_lists.addRow(lbl_data_affixes,     self.le_data_affixes)
+        layout_lists.addRow(lbl_channels_affixes, self.le_channels_affixes)
+        layout_lists.addRow(lbl_normal_affixes,   self.le_normal_affixes)
+
+        layout_main.addLayout(layout_lists)
+        layout_main.addWidget(self.chk_automatic_work_mode)
+        layout_main.addWidget(self.button_box)
+        self.setLayout(layout_main)
+
+    def clean_affixes_list(self, affixes: list[str]):
+        for affix in affixes:
+            affix.strip()
+        return [affix for affix in affixes if affix != ""]
 
     def accept(self):
-        Settings.data_suffixes = self.clean_suffixes_list(self.le_data_prefixes.text().split(","))
-        Settings.color_suffixes = self.clean_suffixes_list(self.le_color_prefixes.text().split(","))
-        Settings.channels_suffixes = self.clean_suffixes_list(self.le_channels_prefixes.text().split(","))
+        Settings.color_affixes    = self.clean_affixes_list(self.le_color_affixes.text().split(","))
+        Settings.data_affixes     = self.clean_affixes_list(self.le_data_affixes.text().split(","))
+        Settings.channels_affixes = self.clean_affixes_list(self.le_channels_affixes.text().split(","))
+        Settings.normal_affixes   = self.clean_affixes_list(self.le_normal_affixes.text().split(","))
+        Settings.use_automatic_work_mode = self.chk_automatic_work_mode.isChecked()
         Settings.save_settings()
         super().accept()
 
 
 class Settings:
-    color_suffixes: list[str] = []
-    data_suffixes: list[str] = []
-    channels_suffixes: list[str] = []
+    color_affixes:    list[str] = []
+    data_affixes:     list[str] = []
+    channels_affixes: list[str] = []
+    normal_affixes:   list[str] = []
+    use_automatic_work_mode = False
+
     settings_path: str = os.path.dirname(__file__) + "\\Saved\\Settings.json"
 
     @staticmethod
@@ -566,12 +628,16 @@ class Settings:
         try:
             with open(Settings.settings_path) as f:
                 data = json.load(f)
-            if "colorSuffixes" in data:
-                Settings.color_suffixes = data["colorSuffixes"]
-            if "dataSuffixes" in data:
-                Settings.data_suffixes = data["dataSuffixes"]
-            if "channelsSuffixes" in data:
-                Settings.channels_suffixes = data["channelsSuffixes"]
+            if "color_affixes" in data:
+                Settings.color_affixes = data["color_affixes"]
+            if "data_affixes" in data:
+                Settings.data_affixes = data["data_affixes"]
+            if "channels_affixes" in data:
+                Settings.channels_affixes = data["channels_affixes"]
+            if "normal_affixes" in data:
+                Settings.normal_affixes = data["normal_affixes"]
+            if "use_automatic_work_mode" in data:
+                Settings.use_automatic_work_mode = data["use_automatic_work_mode"]
         except:
             print("Failed to load settings")
 
@@ -587,9 +653,10 @@ class Settings:
             with open(Settings.settings_path, "w", encoding="utf-8") as f:
                 json.dump(
                     {
-                        "dataSuffixes": Settings.data_suffixes,
-                        "colorSuffixes": Settings.color_suffixes,
-                        "channelsSuffixes": Settings.channels_suffixes,
+                        "color_affixes":    Settings.color_affixes,
+                        "data_affixes":     Settings.data_affixes,
+                        "channels_affixes": Settings.channels_affixes,
+                        "normal_affixes":   Settings.normal_affixes
                     },
                     f,
                     ensure_ascii=False,
@@ -616,7 +683,7 @@ class MainWindow(QMainWindow):
         my_icon = QIcon()
         my_icon.addFile(app_icon)
         self.setWindowIcon(my_icon)
-        self.setMinimumSize(700, 700)
+        self.setMinimumSize(700, 750)
         self.setWindowTitle("Mip Explorer")
         self.setAcceptDrops(True)
 
@@ -647,10 +714,10 @@ class MainWindow(QMainWindow):
         # Widgets
         self.btn_manual_update = QPushButton("🔃 Refresh")
         self.cmb_work_mode = QComboBox()
-        self.cmb_work_mode.addItems(["🎨 Color", "📅 Data", "🚦 Channels"])
+        self.cmb_work_mode.addItems(["🎨 Color", "📅 Data", "🚦 Channels", "⬆️ Normal"])
         self.cmb_work_mode.currentIndexChanged.connect(self.handle_update)
         self.btn_work_mode_settings = SquareButton("⚙️ Settings")
-        self.btn_work_mode_settings.setToolTip(self.tr("Change the suffixes to search for when setting the work mode"))
+        self.btn_work_mode_settings.setToolTip(self.tr("Change the affixes to search for when setting the work mode"))
         self.btn_work_mode_settings.clicked.connect(self.open_work_mode_settings)
         self.btn_manual_update.clicked.connect(self.handle_update)
         self.file_explorer = FileExplorer()
