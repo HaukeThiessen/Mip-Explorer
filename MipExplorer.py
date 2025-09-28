@@ -37,6 +37,7 @@ import glob
 import csv
 import datetime
 import ctypes
+import atexit
 from pathlib import Path
 
 from enum import Enum
@@ -437,6 +438,9 @@ class FileExplorer(QWidget):
         self.le_address.textEdited.connect(self.handle_address_changed)
         self.btn_batch.clicked.connect(self.process_current_directory)
 
+        if os.path.isdir(Settings.current_directory):
+            self.jump_to_path(Settings.current_directory)
+
     def process_current_directory(self):
         """
         Create a csv file with the Mip0 info stats of all files, sorted
@@ -619,6 +623,8 @@ class Settings:
     normal_affixes:   list[str] = []
     use_automatic_work_mode = False
 
+    current_directory = ""
+
     settings_path: str = os.path.dirname(__file__) + "\\Saved\\Settings.json"
 
     @staticmethod
@@ -636,6 +642,8 @@ class Settings:
                 Settings.normal_affixes = data["normal_affixes"]
             if "use_automatic_work_mode" in data:
                 Settings.use_automatic_work_mode = data["use_automatic_work_mode"]
+            if "current_directory" in data:
+                Settings.current_directory = data["current_directory"]
         except:
             print("Failed to load settings")
 
@@ -651,11 +659,12 @@ class Settings:
             with open(Settings.settings_path, "w", encoding="utf-8") as f:
                 json.dump(
                     {
-                        "color_affixes":            Settings.color_affixes,
-                        "data_affixes":             Settings.data_affixes,
-                        "channels_affixes":         Settings.channels_affixes,
-                        "normal_affixes":           Settings.normal_affixes,
-                        "use_automatic_work_mode" : Settings.use_automatic_work_mode
+                        "color_affixes":          Settings.color_affixes,
+                        "data_affixes":           Settings.data_affixes,
+                        "channels_affixes":       Settings.channels_affixes,
+                        "normal_affixes":         Settings.normal_affixes,
+                        "use_automatic_work_mode":Settings.use_automatic_work_mode,
+                        "current_directory":      Settings.current_directory
                     },
                     f,
                     ensure_ascii=False,
@@ -876,6 +885,10 @@ class MainWindow(QMainWindow):
         else:
             e.ignore()
 
+def exit_handler():
+    Settings.current_directory = window.file_explorer.file_model.rootPath()
+    Settings.save_settings()
+
 
 if __name__ == "__main__":
     cachepath = os.path.dirname(__file__) + "/Saved/CachedData.json"
@@ -907,4 +920,6 @@ if __name__ == "__main__":
     window = MainWindow()
 
     window.show()
+    atexit.register(exit_handler)
+
     app.exec()
