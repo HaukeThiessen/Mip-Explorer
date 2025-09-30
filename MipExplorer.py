@@ -391,11 +391,15 @@ class FileExplorer(QWidget):
         v_layout = QVBoxLayout(self)
         h_layout = QHBoxLayout()
         lt_list = QVBoxLayout()
+        lt_controls = QHBoxLayout()
         self.le_address = QLineEdit()
         self.tree_view = QTreeView()
         self.list_view = QListView()
         self.splitter = QSplitter()
         self.list_container = QWidget()
+        self.cmb_icon_size = QComboBox()
+        self.cmb_icon_size.addItems(["L\u0332ist", "M\u0332edium", "B\u0332ig"])
+        self.cmb_icon_size.setToolTip("Icon Size")
         self.btn_batch = QPushButton(self.scan_directory_label)
         self.btn_batch.setToolTip("Calculates Mip0's information density for all textures in this directory and sub-directories.\n"
                                   "Stores the sorted results in a csv file.\n"
@@ -408,7 +412,9 @@ class FileExplorer(QWidget):
         self.splitter.addWidget(self.list_container)
         self.list_container.setLayout(lt_list)
         lt_list.addWidget(self.list_view)
-        lt_list.addWidget(self.btn_batch)
+        lt_list.addLayout(lt_controls)
+        lt_controls.addWidget(self.cmb_icon_size)
+        lt_controls.addWidget(self.btn_batch)
         v_layout.addWidget(self.le_address)
         v_layout.addLayout(h_layout)
         path = QDir.rootPath()
@@ -430,16 +436,32 @@ class FileExplorer(QWidget):
 
         self.tree_view.setRootIndex(self.dir_model.index(path))
         self.list_view.setRootIndex(self.file_model.index(path))
+        self.list_view.setResizeMode(QListView.ResizeMode.Adjust)
 
         self.tree_view.clicked.connect(self.on_clicked)
         self.tree_view.selectionModel().currentChanged.connect(self.on_clicked)
         self.list_view.selectionModel().selectionChanged.connect(self.handle_selection_changed)
         self.list_view.doubleClicked.connect(self.open_current_directory)
         self.le_address.textEdited.connect(self.handle_address_changed)
+        self.cmb_icon_size.currentIndexChanged.connect(self.handle_icon_size_changed)
         self.btn_batch.clicked.connect(self.process_current_directory)
 
         if os.path.isdir(Settings.current_directory):
             self.jump_to_path(Settings.current_directory)
+
+    def handle_icon_size_changed(self):
+        current_index = self.cmb_icon_size.currentIndex()
+        if current_index == 0:
+            self.list_view.setViewMode(QListView.ViewMode.ListMode)
+            self.list_view.setGridSize(QSize(-1, -1))
+            self.list_view.setIconSize(QSize(-1, -1))
+        else:
+            sizes = [128, 256]
+            new_size = sizes[current_index - 1]
+            self.list_view.setViewMode(QListView.ViewMode.IconMode)
+            self.list_view.setGridSize(QSize(new_size, new_size))
+            self.list_view.setIconSize(QSize(new_size - 16, new_size - 16))
+        QWidget.update(self.list_view)
 
     def process_current_directory(self):
         """
@@ -812,6 +834,12 @@ class MainWindow(QMainWindow):
                 return True
             if key == Qt.Key_S:
                 self.open_work_mode_settings()
+            if key == Qt.Key_L:
+                self.file_explorer.cmb_icon_size.setCurrentIndex(0)
+            if key == Qt.Key_M:
+                self.file_explorer.cmb_icon_size.setCurrentIndex(1)
+            if key == Qt.Key_B:
+                self.file_explorer.cmb_icon_size.setCurrentIndex(2)
         return QWidget.eventFilter(self, widget, event)
 
     def open_work_mode_settings(self):
