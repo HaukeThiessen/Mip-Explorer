@@ -345,7 +345,7 @@ def is_system_dark() -> bool:
 class InfoPanel(QWidget):
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
-        layout = QHBoxLayout(self)
+        lt_main = QHBoxLayout(self)
         lbl_resolution = QLabel("Resolution:")
         lbl_resolution.setAlignment(Qt.AlignmentFlag.AlignRight)
 
@@ -358,10 +358,10 @@ class InfoPanel(QWidget):
         self.lbl_size_value = QLabel()
         self.lbl_size_value.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
-        layout.addWidget(lbl_resolution)
-        layout.addWidget(self.lbl_res_value)
-        layout.addWidget(lbl_size)
-        layout.addWidget(self.lbl_size_value)
+        lt_main.addWidget(lbl_resolution)
+        lt_main.addWidget(self.lbl_res_value)
+        lt_main.addWidget(lbl_size)
+        lt_main.addWidget(self.lbl_size_value)
 
     def update_info(self, filepath, pixmap: QPixmap):
         self.lbl_res_value.setText(str(pixmap.size().height()) + " x " + str(pixmap.size().width()))
@@ -381,6 +381,95 @@ class SquareButton(QPushButton):
         super().resize_event(event)
         self.setMaximumWidth(min(self.width(), self.height()))
 
+class simple_scroller(QScrollArea):
+    """
+    A scroll bar that doesn't react to the mouse wheel being used
+    """
+    def __init__(self):
+        QScrollArea.__init__(self)
+
+    def wheelEvent(self, ev):
+        if ev.type() == QEvent.Wheel:
+            ev.ignore()
+
+class TextureViewer(QWidget):
+    def __init__(self, *args, **kwargs):
+        QWidget.__init__(self, *args, **kwargs)
+        self.texture_size = 300
+        self.original_texture_size = 0
+
+        # Widgets
+        self.lbl_preview = QLabel()
+        self.lbl_preview.setScaledContents(True)
+        self.lbl_preview.setFixedSize(self.texture_size, self.texture_size)
+
+        self.scrl_preview = simple_scroller()
+        self.scrl_preview.setWidget(self.lbl_preview)
+        self.scrl_preview.setWidgetResizable(True)
+
+        self.sldr_size = QSlider()
+        self.sldr_size.setMinimum(100)
+        self.sldr_size.setMaximum(1000)
+        self.sldr_size.setPageStep(90)
+        self.sldr_size.setValue(300)
+        self.sldr_size.valueChanged.connect(self.handle_size_changed)
+
+        self.btn_original_size = QPushButton("🟰")
+        self.btn_original_size.setMaximumWidth(24)
+        self.btn_original_size.setToolTip("Displays the texture at its original size"
+                                          "\nAssigned shortcut key: 0")
+        self.btn_original_size.clicked.connect(self.set_original_size)
+
+        # Layouts
+        lt_main = QHBoxLayout(self)
+        lt_size_controls = QVBoxLayout()
+
+        # Organize widgets in layouts
+        lt_main.addLayout(lt_size_controls)
+        lt_size_controls.addWidget(self.sldr_size,alignment=Qt.AlignmentFlag.AlignHCenter)
+        lt_size_controls.addWidget(self.btn_original_size)
+        lt_main.addWidget(self.scrl_preview)
+
+        self.pixmap = QPixmap("")
+        self.lbl_preview.setPixmap(self.pixmap)
+
+    def update_pixmap(self, pixmap: QPixmap):
+        self.pixmap = pixmap
+        max_dimension = pixmap.size().height() if pixmap.size().height() > pixmap.size().width() else pixmap.size().width()
+        self.original_texture_size = max_dimension
+        self.lbl_preview.setPixmap(pixmap)
+        self.update_texture_view()
+
+    def handle_size_changed(self):
+        self.texture_size = self.sldr_size.value()
+        self.update_texture_view()
+        return
+
+    def set_original_size(self):
+          if self.sldr_size.maximum() < self.original_texture_size:
+              self.sldr_size.setMaximum(self.original_texture_size)
+          self.sldr_size.setValue(self.original_texture_size)
+
+          if self.sldr_size.minimum() > self.original_texture_size:
+              self.sldr_size.setMinimum(self.original_texture_size)
+          self.sldr_size.setValue(self.original_texture_size)
+
+          self.handle_size_changed()
+
+    def wheelEvent(self, event: QEvent):
+        numDegrees: QPoint = event.angleDelta() / 8
+        self.sldr_size.setValue(self.sldr_size.value() + (numDegrees.y() * 2))
+        self.handle_size_changed()
+        event.accept()
+
+    def update_texture_view(self):
+        if self.lbl_preview.pixmap():
+            pixmap = self.lbl_preview.pixmap()
+            aspect_ratio: float = pixmap.size().width() / pixmap.size().height()
+            if aspect_ratio < 1.0:
+                self.lbl_preview.setFixedSize(self.texture_size * aspect_ratio, self.texture_size)
+            else:
+                self.lbl_preview.setFixedSize(self.texture_size, self.texture_size / aspect_ratio)
 
 class FileExplorer(QWidget):
     file_changed = Signal()
@@ -388,8 +477,8 @@ class FileExplorer(QWidget):
 
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
-        v_layout = QVBoxLayout(self)
-        h_layout = QHBoxLayout()
+        lt_vertical = QVBoxLayout(self)
+        lt_horizontal = QHBoxLayout()
         lt_list = QVBoxLayout()
         lt_controls = QHBoxLayout()
         self.le_address = QLineEdit()
@@ -401,13 +490,13 @@ class FileExplorer(QWidget):
         self.cmb_icon_size.addItems(["L\u0332ist", "M\u0332edium", "B\u0332ig"])
         self.cmb_icon_size.setToolTip("Icon Size")
         self.btn_batch = QPushButton(self.scan_directory_label)
-        self.btn_batch.setToolTip("Calculates Mip0's information density for all textures in this directory and sub-directories.\n"
+        self.btn_batch.setToolTip("Calculates Mip 0's information density for all textures in this directory and sub-directories.\n"
                                   "Stores the sorted results in a csv file.\n"
                                   "The work mode is determined automatically, and falls back to DATA if the mode can't be derived from the affix.")
         self.list_view.setMinimumWidth(15)
         self.tree_view.setMinimumWidth(15)
         self.splitter.setChildrenCollapsible(False)
-        h_layout.addWidget(self.splitter)
+        lt_horizontal.addWidget(self.splitter)
         self.splitter.addWidget(self.tree_view)
         self.splitter.addWidget(self.list_container)
         self.list_container.setLayout(lt_list)
@@ -415,8 +504,8 @@ class FileExplorer(QWidget):
         lt_list.addLayout(lt_controls)
         lt_controls.addWidget(self.cmb_icon_size)
         lt_controls.addWidget(self.btn_batch)
-        v_layout.addWidget(self.le_address)
-        v_layout.addLayout(h_layout)
+        lt_vertical.addWidget(self.le_address)
+        lt_vertical.addLayout(lt_horizontal)
         path = QDir.rootPath()
         path = ""
 
@@ -569,8 +658,8 @@ class WorkModeSettingsDialog(QDialog):
         self.button_box = QDialogButtonBox(QBtn)
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
-        layout_lists = QFormLayout()
-        layout_main = QVBoxLayout()
+        lt_lists = QFormLayout()
+        lt_main = QVBoxLayout()
 
         lbl_color_affixes = QLabel("Color: ")
         lbl_color_affixes.setToolTip(
@@ -613,15 +702,15 @@ class WorkModeSettingsDialog(QDialog):
         self.chk_automatic_work_mode.setToolTip(self.tr("Change the work mode if an affix is found in the file name"
                                                         "that matches one of the mode affixes defined in the settings"))
 
-        layout_lists.addRow(lbl_color_affixes,    self.le_color_affixes)
-        layout_lists.addRow(lbl_data_affixes,     self.le_data_affixes)
-        layout_lists.addRow(lbl_channels_affixes, self.le_channels_affixes)
-        layout_lists.addRow(lbl_normal_affixes,   self.le_normal_affixes)
+        lt_lists.addRow(lbl_color_affixes,    self.le_color_affixes)
+        lt_lists.addRow(lbl_data_affixes,     self.le_data_affixes)
+        lt_lists.addRow(lbl_channels_affixes, self.le_channels_affixes)
+        lt_lists.addRow(lbl_normal_affixes,   self.le_normal_affixes)
 
-        layout_main.addLayout(layout_lists)
-        layout_main.addWidget(self.chk_automatic_work_mode)
-        layout_main.addWidget(self.button_box)
-        self.setLayout(layout_main)
+        lt_main.addLayout(lt_lists)
+        lt_main.addWidget(self.chk_automatic_work_mode)
+        lt_main.addWidget(self.button_box)
+        self.setLayout(lt_main)
 
     def clean_affixes_list(self, affixes: list[str]):
         for affix in affixes:
@@ -758,36 +847,29 @@ class MainWindow(QMainWindow):
         self.scrl_numbers_list.setWidgetResizable(True)
 
         self.texture_info = InfoPanel()
+        self.texture_viewer = TextureViewer(self)
 
-        self.lbl_preview = QLabel(self)
-        self.lbl_preview.setScaledContents(True)
-        self.lbl_preview.setFixedSize(300, 300)
-        self.pixmap = QPixmap("")
-
-        self.lbl_preview.setPixmap(self.pixmap)
         splitter = QSplitter()
         results_panel = QWidget()
         details_panel = QWidget()
-        self.scrl_preview = QScrollArea()
 
         # Layouts
         lt_main = QHBoxLayout()
         lt_results = QHBoxLayout()
         lt_details_options = QHBoxLayout()
         lt_details = QVBoxLayout()
+        lt_texture_view = QHBoxLayout()
 
         # Organizing widgets in layouts
         lt_results.addWidget(self.canvas, 5)
         lt_results.addWidget(self.scrl_numbers_list, 1)
         results_panel.setLayout(lt_results)
-
-        self.scrl_preview.setWidget(self.lbl_preview)
-        self.scrl_preview.setWidgetResizable(True)
         details_panel.setLayout(lt_details)
 
         lt_details.addWidget(results_panel)
         lt_details.addWidget(self.texture_info)
-        lt_details.addWidget(self.scrl_preview)
+        lt_details.addLayout(lt_texture_view)
+        lt_details.addWidget(self.texture_viewer)
         lt_details.addLayout(lt_details_options)
 
         lt_details_options.addWidget(self.btn_manual_update)
@@ -840,6 +922,8 @@ class MainWindow(QMainWindow):
                 self.file_explorer.cmb_icon_size.setCurrentIndex(1)
             if key == Qt.Key_B:
                 self.file_explorer.cmb_icon_size.setCurrentIndex(2)
+            if key == Qt.Key_0:
+                self.texture_viewer.set_original_size()
         return QWidget.eventFilter(self, widget, event)
 
     def open_work_mode_settings(self):
@@ -862,12 +946,7 @@ class MainWindow(QMainWindow):
         pixmap = QPixmap(selected_file)
         self.texture_info.update_info(selected_file, pixmap)
         if is_mip_mappable(pixmap):
-            self.lbl_preview.setPixmap(pixmap)
-            aspect_ratio: float = pixmap.size().width() / pixmap.size().height()
-            if aspect_ratio < 1.0:
-                self.lbl_preview.setFixedSize(300 * aspect_ratio, 300)
-            else:
-                self.lbl_preview.setFixedSize(300, 300 / aspect_ratio)
+            self.texture_viewer.update_pixmap(pixmap)
             work_mode: WorkMode = WorkMode(self.cmb_work_mode.currentIndex())
             y_axis_values = get_plot_values(selected_file, work_mode, force_update)
             update_plot(self.plt_mips, y_axis_values)
@@ -883,7 +962,7 @@ class MainWindow(QMainWindow):
             update_plot(self.plt_mips, [])
             self.plt_mips.set_visible(False)
             self.canvas.draw()
-            self.lbl_preview.setPixmap(QPixmap(""))
+            self.texture_viewer.lbl_preview.setPixmap(QPixmap(""))
 
     # The following three methods set up dragging and dropping for the app
     def dragEnterEvent(self, e):
