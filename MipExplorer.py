@@ -74,8 +74,6 @@ SUPPORTEDFORMATS = {
     "*.ras",
     "*.tiff",
     "*.tif",
-    "*.exr",
-    "*.hdr",
     "*.pic",
     "*.csv",
 }
@@ -93,6 +91,28 @@ selected_file: str = ""
 
 dark_color = "#2B2B2B"
 light_color = "#FFFAF0"
+
+
+class IconProvider(QFileIconProvider):
+    """
+    The default icons provided by the file system model were often mixed up, this icon provider returns the correct icons
+    """
+    def __init__(self) -> None:
+        super().__init__()
+        self.ICON_SIZE = QSize(64,64)
+        self.ACCEPTED_FORMATS = (".jpg",".tiff",".png", ".webp", ".tga")
+
+    def icon(self, type: QFileIconProvider.IconType):
+        try:
+            fn = type.filePath()
+            if fn.endswith(self.ACCEPTED_FORMATS):
+                a = QPixmap(self.ICON_SIZE)
+                a.load(fn)
+                return QIcon(a)
+            else:
+                return super().icon(type)
+        except:
+            return super().icon(type)
 
 
 class WorkMode(Enum):
@@ -396,7 +416,7 @@ class TextureViewer(QWidget):
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         self.texture_size = 300
-        self.original_texture_size = 0
+        self.original_texture_size = [0,0]
 
         # Widgets
         self.lbl_preview = QLabel()
@@ -406,6 +426,7 @@ class TextureViewer(QWidget):
         self.scrl_preview = simple_scroller()
         self.scrl_preview.setWidget(self.lbl_preview)
         self.scrl_preview.setWidgetResizable(True)
+        self.scrl_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.sldr_size = QSlider()
         self.sldr_size.setMinimum(100)
@@ -417,8 +438,19 @@ class TextureViewer(QWidget):
         self.btn_original_size = QPushButton("🟰")
         self.btn_original_size.setMaximumWidth(24)
         self.btn_original_size.setToolTip("Displays the texture at its original size"
-                                          "\nAssigned shortcut key: 0")
+                                          "\nShortcut key: 1")
         self.btn_original_size.clicked.connect(self.set_original_size)
+
+        self.btn_fill_size = QPushButton("↔️")
+        self.btn_fill_size.setMaximumWidth(24)
+        self.btn_fill_size.setToolTip("Displays the texture at a size that fills the available space")
+        self.btn_fill_size.clicked.connect(self.set_fill_size)
+
+        self.btn_fit_size = QPushButton("↕️")
+        self.btn_fit_size.setMaximumWidth(24)
+        self.btn_fit_size.setToolTip("Displays the texture at a size that it fits completely into the available space"
+                                     "\nShortcut key: 0")
+        self.btn_fit_size.clicked.connect(self.set_fit_size)
 
         # Layouts
         lt_main = QHBoxLayout(self)
@@ -428,6 +460,8 @@ class TextureViewer(QWidget):
         lt_main.addLayout(lt_size_controls)
         lt_size_controls.addWidget(self.sldr_size,alignment=Qt.AlignmentFlag.AlignHCenter)
         lt_size_controls.addWidget(self.btn_original_size)
+        lt_size_controls.addWidget(self.btn_fill_size)
+        lt_size_controls.addWidget(self.btn_fit_size)
         lt_main.addWidget(self.scrl_preview)
 
         self.pixmap = QPixmap("")
@@ -435,8 +469,7 @@ class TextureViewer(QWidget):
 
     def update_pixmap(self, pixmap: QPixmap):
         self.pixmap = pixmap
-        max_dimension = pixmap.size().height() if pixmap.size().height() > pixmap.size().width() else pixmap.size().width()
-        self.original_texture_size = max_dimension
+        self.original_texture_size = [pixmap.size().width(), pixmap.size().height()]
         self.lbl_preview.setPixmap(pixmap)
         self.update_texture_view()
 
@@ -445,15 +478,42 @@ class TextureViewer(QWidget):
         self.update_texture_view()
         return
 
+    def set_fill_size(self):
+        max_size = self.scrl_preview.width() if self.scrl_preview.width() > self.scrl_preview.height() else self.scrl_preview.height()
+        max_size -= self.scrl_preview.verticalScrollBar().width() + 2
+        if self.sldr_size.maximum() < max_size:
+            self.sldr_size.setMaximum(max_size)
+
+        if self.sldr_size.minimum() > max_size:
+            self.sldr_size.setMinimum(max_size)
+
+        self.sldr_size.setValue(max_size)
+        self.handle_size_changed()
+
+    def set_fit_size(self):
+        min_size = self.scrl_preview.width() if self.scrl_preview.width() < self.scrl_preview.height() else self.scrl_preview.height()
+        min_size -= 2
+        aspect_ratio = float(self.original_texture_size[0]) / float(self.original_texture_size[1])
+        min_size = int(min_size * aspect_ratio)
+
+        if self.sldr_size.maximum() < min_size:
+            self.sldr_size.setMaximum(min_size)
+
+        if self.sldr_size.minimum() > min_size:
+            self.sldr_size.setMinimum(min_size)
+
+        self.sldr_size.setValue(min_size)
+        self.handle_size_changed()
+
     def set_original_size(self):
-          if self.sldr_size.maximum() < self.original_texture_size:
-              self.sldr_size.setMaximum(self.original_texture_size)
-          self.sldr_size.setValue(self.original_texture_size)
+          max_dimension = self.original_texture_size[0] if self.original_texture_size[0] > self.original_texture_size[1] else self.original_texture_size[1]
+          if self.sldr_size.maximum() < max_dimension:
+              self.sldr_size.setMaximum(max_dimension)
 
-          if self.sldr_size.minimum() > self.original_texture_size:
-              self.sldr_size.setMinimum(self.original_texture_size)
-          self.sldr_size.setValue(self.original_texture_size)
+          if self.sldr_size.minimum() > max_dimension:
+              self.sldr_size.setMinimum(max_dimension)
 
+          self.sldr_size.setValue(max_dimension)
           self.handle_size_changed()
 
     def wheelEvent(self, event: QEvent):
@@ -466,10 +526,12 @@ class TextureViewer(QWidget):
         if self.lbl_preview.pixmap():
             pixmap = self.lbl_preview.pixmap()
             aspect_ratio: float = pixmap.size().width() / pixmap.size().height()
+            self.lbl_preview.setFixedSize(self.texture_size, self.texture_size / aspect_ratio)
+            return
             if aspect_ratio < 1.0:
-                self.lbl_preview.setFixedSize(self.texture_size * aspect_ratio, self.texture_size)
-            else:
                 self.lbl_preview.setFixedSize(self.texture_size, self.texture_size / aspect_ratio)
+            else:
+                self.lbl_preview.setFixedSize(self.texture_size * aspect_ratio, self.texture_size)
 
 class FileExplorer(QWidget):
     file_changed = Signal()
@@ -514,6 +576,7 @@ class FileExplorer(QWidget):
         self.dir_model.setFilter(QDir.NoDotAndDotDot | QDir.AllDirs)
 
         self.file_model = QFileSystemModel()
+        self.file_model.setIconProvider(IconProvider())
         self.file_model.setFilter(QDir.NoDotAndDotDot | QDir.Files | QDir.AllDirs)
         self.file_model.setNameFilters(SUPPORTEDFORMATS)
 
@@ -922,8 +985,10 @@ class MainWindow(QMainWindow):
                 self.file_explorer.cmb_icon_size.setCurrentIndex(1)
             if key == Qt.Key_B:
                 self.file_explorer.cmb_icon_size.setCurrentIndex(2)
-            if key == Qt.Key_0:
+            if key == Qt.Key_1:
                 self.texture_viewer.set_original_size()
+            if key == Qt.Key_0:
+                self.texture_viewer.set_fit_size()
         return QWidget.eventFilter(self, widget, event)
 
     def open_work_mode_settings(self):
