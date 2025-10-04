@@ -86,11 +86,11 @@ CACHEVERSION: int = 3
 
 FILEBROWSER_PATH: str = os.path.join(os.getenv("WINDIR"), "explorer.exe")
 
-allow_caching: bool = True
+ALLOW_CACHING: bool = True
 selected_file: str = ""
 
-dark_color = "#2B2B2B"
-light_color = "#FFFAF0"
+DARK_COLOR =  "#2B2B2B"
+LIGHT_COLOR = "#FFFAF0"
 
 
 class IconProvider(QFileIconProvider):
@@ -197,9 +197,9 @@ def get_results_category(work_mode: WorkMode):
     return "Results_Normal" if work_mode == WorkMode.NORMAL else "Results"
 
 
-def try_getting_cached_results(filepath: str, cachepath: str, work_mode: WorkMode) -> list[list[float]]:
+def try_getting_cached_results(filepath: str, cachepath: str) -> list[list[float]]:
     category: str = get_results_category
-    if not allow_caching:
+    if not ALLOW_CACHING:
         return
     try:
         with open(cachepath, "r", encoding="utf-8") as file:
@@ -259,14 +259,14 @@ def update_plot(plot, y_axis_values: list[list[float]]):
         if new_grid.__len__() == 4:
             plot.plot(new_grid[3], "gray")
     else:
-        plot.plot(y_axis_values, color_fg)
+        plot.plot(y_axis_values, fg_Color)
 
 
 def update_list(list_widget, y_axis_values: list[list[float]], work_mode: WorkMode):
     if y_axis_values.__len__() == 0:
         list_widget.setText("   -   ")
         return
-    caption = ""
+    caption = "Information/Pixel:\n"
     if work_mode == WorkMode.CHANNELS and type(y_axis_values[0]) == list:
         for idx, value in enumerate(y_axis_values):
             caption += "  Mip " + "{:<5}".format(str(idx) + ", R: ") + "{:.3f}".format(value[0]) + "  \n"
@@ -285,7 +285,7 @@ def update_list(list_widget, y_axis_values: list[list[float]], work_mode: WorkMo
 def get_plot_values(filepath: str, work_mode: WorkMode, force_update: bool = False) -> list[list[float]]:
     deltas = []
     if not force_update:
-        deltas = try_getting_cached_results(filepath, cachepath, work_mode)
+        deltas = try_getting_cached_results(filepath, cachepath)
     if not deltas:
         deltas = calculate_deltas(filepath, True, work_mode == WorkMode.NORMAL)
         save_cached_results(deltas, filepath, cachepath, work_mode)
@@ -332,13 +332,13 @@ def get_automatic_work_mode(filePath: str) -> WorkMode:
         return WorkMode.MAX
 
     base_name = os.path.splitext(os.path.basename(filePath))[0]
-    if any(base_name.endswith(affix) for affix in Settings.color_affixes) or any(base_name.startswith(affix) for affix in Settings.color_affixes):
+    if any(base_name.endswith(affix) for affix in Settings.color_affixes)     or any(base_name.startswith(affix) for affix in Settings.color_affixes):
         return WorkMode.COLOR
-    if any(base_name.endswith(affix) for affix in Settings.data_affixes) or any(base_name.startswith(affix) for affix in Settings.data_affixes):
+    if any(base_name.endswith(affix) for affix in Settings.data_affixes)      or any(base_name.startswith(affix) for affix in Settings.data_affixes):
         return WorkMode.DATA
-    if any(base_name.endswith(affix) for affix in Settings.channels_affixes) or any(base_name.startswith(affix) for affix in Settings.channels_affixes):
+    if any(base_name.endswith(affix) for affix in Settings.channels_affixes)  or any(base_name.startswith(affix) for affix in Settings.channels_affixes):
         return WorkMode.CHANNELS
-    if any(base_name.endswith(affix) for affix in Settings.normal_affixes) or any(base_name.startswith(affix) for affix in Settings.normal_affixes):
+    if any(base_name.endswith(affix) for affix in Settings.normal_affixes)    or any(base_name.startswith(affix) for affix in Settings.normal_affixes):
         return WorkMode.NORMAL
     return WorkMode.MAX
 
@@ -366,20 +366,22 @@ class InfoPanel(QWidget):
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         lt_main = QHBoxLayout(self)
+        lt_main.setContentsMargins(0,0,0,0)
         lbl_resolution = QLabel("Resolution:")
-        lbl_resolution.setAlignment(Qt.AlignmentFlag.AlignRight)
+        lbl_resolution.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.lbl_res_value = QLabel("")
-        self.lbl_res_value.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.lbl_res_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         lbl_size = QLabel("Size:")
-        lbl_size.setAlignment(Qt.AlignmentFlag.AlignRight)
+        lbl_size.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.lbl_size_value = QLabel()
-        self.lbl_size_value.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.lbl_size_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         lt_main.addWidget(lbl_resolution)
         lt_main.addWidget(self.lbl_res_value)
+        lt_main.addSpacing(15)
         lt_main.addWidget(lbl_size)
         lt_main.addWidget(self.lbl_size_value)
 
@@ -401,6 +403,7 @@ class SquareButton(QPushButton):
         super().resize_event(event)
         self.setMaximumWidth(min(self.width(), self.height()))
 
+
 class simple_scroller(QScrollArea):
     """
     A scroll bar that doesn't react to the mouse wheel being used
@@ -412,6 +415,7 @@ class simple_scroller(QScrollArea):
         if ev.type() == QEvent.Wheel:
             ev.ignore()
 
+
 class TextureViewer(QWidget):
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
@@ -420,6 +424,8 @@ class TextureViewer(QWidget):
 
         # Widgets
         self.lbl_preview = QLabel()
+        self.lbl_preview.setFrameStyle(QFrame.Shape.Box)
+        self.lbl_preview.setStyleSheet('background-color: ' + str(fg_Color))
         self.lbl_preview.setScaledContents(True)
         self.lbl_preview.setFixedSize(self.texture_size, self.texture_size)
 
@@ -433,6 +439,7 @@ class TextureViewer(QWidget):
         self.sldr_size.setMaximum(1000)
         self.sldr_size.setPageStep(90)
         self.sldr_size.setValue(300)
+        self.sldr_size.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.sldr_size.valueChanged.connect(self.handle_size_changed)
 
         self.btn_original_size = QPushButton("🟰")
@@ -454,15 +461,16 @@ class TextureViewer(QWidget):
 
         # Layouts
         lt_main = QHBoxLayout(self)
+        lt_main.setContentsMargins(0,0,0,0)
         lt_size_controls = QVBoxLayout()
 
         # Organize widgets in layouts
         lt_main.addLayout(lt_size_controls)
-        lt_size_controls.addWidget(self.sldr_size,alignment=Qt.AlignmentFlag.AlignHCenter)
+        lt_main.addWidget(self.scrl_preview)
+        lt_size_controls.addWidget(self.sldr_size,alignment = Qt.AlignmentFlag.AlignHCenter)
         lt_size_controls.addWidget(self.btn_original_size)
         lt_size_controls.addWidget(self.btn_fill_size)
         lt_size_controls.addWidget(self.btn_fit_size)
-        lt_main.addWidget(self.scrl_preview)
 
         self.pixmap = QPixmap("")
         self.lbl_preview.setPixmap(self.pixmap)
@@ -528,10 +536,7 @@ class TextureViewer(QWidget):
             aspect_ratio: float = pixmap.size().width() / pixmap.size().height()
             self.lbl_preview.setFixedSize(self.texture_size, self.texture_size / aspect_ratio)
             return
-            if aspect_ratio < 1.0:
-                self.lbl_preview.setFixedSize(self.texture_size, self.texture_size / aspect_ratio)
-            else:
-                self.lbl_preview.setFixedSize(self.texture_size * aspect_ratio, self.texture_size)
+
 
 class FileExplorer(QWidget):
     file_changed = Signal()
@@ -540,8 +545,10 @@ class FileExplorer(QWidget):
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         lt_vertical = QVBoxLayout(self)
+        lt_vertical.setContentsMargins(0,0,0,0)
         lt_horizontal = QHBoxLayout()
         lt_list = QVBoxLayout()
+        lt_list.setContentsMargins(0,0,0,0)
         lt_controls = QHBoxLayout()
         self.le_address = QLineEdit()
         self.tree_view = QTreeView()
@@ -841,8 +848,8 @@ class Settings:
                         "current_directory":      Settings.current_directory
                     },
                     f,
-                    ensure_ascii=False,
-                    indent=4,
+                    ensure_ascii = False,
+                    indent = 4,
                 )
         except:
             print("Failed to write settings to file")
@@ -865,26 +872,21 @@ class MainWindow(QMainWindow):
         my_icon = QIcon()
         my_icon.addFile(app_icon)
         self.setWindowIcon(my_icon)
-        self.setMinimumSize(700, 750)
         self.setWindowTitle("Mip Explorer")
         self.setAcceptDrops(True)
 
         self.fig = Figure(
-            figsize=(12, 5),
-            dpi=100,
-            facecolor="black" if is_system_dark() else "white",
-            layout="tight",
-            linewidth=0,
+            figsize = (12, 5),
+            dpi = 100,
+            facecolor = "black" if is_system_dark() else "white",
+            layout = "tight",
+            linewidth = 0,
         )
-        matplotlib.rcParams["xtick.color"] = color_fg
-        matplotlib.rcParams["ytick.color"] = color_fg
-        matplotlib.rcParams["figure.edgecolor"] = "red"
-        matplotlib.rcParams["axes.facecolor"] = bgColor
-        matplotlib.rcParams["legend.facecolor"] = "green"
-        matplotlib.rcParams["axes.titlecolor"] = "green"
-
-        matplotlib.rcParams["axes.labelcolor"] = color_fg
-        matplotlib.rcParams["axes.edgecolor"] = color_fg
+        matplotlib.rcParams["xtick.color"]      = fg_Color
+        matplotlib.rcParams["ytick.color"]      = fg_Color
+        matplotlib.rcParams["axes.labelcolor"]  = fg_Color
+        matplotlib.rcParams["axes.edgecolor"]   = fg_Color
+        matplotlib.rcParams["axes.facecolor"]   = bg_Color
 
         self.plt_mips = self.fig.add_subplot(111)
         self.plt_mips.set_xlabel("Mips")
@@ -895,13 +897,15 @@ class MainWindow(QMainWindow):
 
         # Widgets
         self.btn_manual_update = QPushButton("🔃 R\u0332efresh")
+        self.btn_manual_update.clicked.connect(self.force_update)
         self.cmb_work_mode = QComboBox()
         self.cmb_work_mode.addItems(["🎨 C\u0332olor", "📅 D\u0332ata", "🚦 Cha\u0332nnels", "⬆️ N\u0332ormal"])
         self.cmb_work_mode.currentIndexChanged.connect(self.handle_update)
         self.btn_work_mode_settings = SquareButton("⚙️ S\u0332ettings")
         self.btn_work_mode_settings.setToolTip(self.tr("Change the affixes to search for when setting the work mode"))
         self.btn_work_mode_settings.clicked.connect(self.open_work_mode_settings)
-        self.btn_manual_update.clicked.connect(self.force_update)
+
+        self.texture_info_panel = InfoPanel()
         self.file_explorer = FileExplorer()
         self.file_explorer.file_changed.connect(self.handle_file_changed)
         self.scrl_numbers_list = QScrollArea()
@@ -909,40 +913,47 @@ class MainWindow(QMainWindow):
         self.scrl_numbers_list.setWidget(self.numbers_list)
         self.scrl_numbers_list.setWidgetResizable(True)
 
-        self.texture_info = InfoPanel()
+        self.scrl_numbers_list.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        self.scrl_numbers_list.setFrameStyle(QFrame.Shape.NoFrame)
+
         self.texture_viewer = TextureViewer(self)
 
-        splitter = QSplitter()
-        results_panel = QWidget()
+        splt_main = QSplitter()
+        splt_details = QSplitter()
+        splt_details.setOrientation(Qt.Orientation.Vertical)
         details_panel = QWidget()
+        splt_results = QSplitter()
 
         # Layouts
         lt_main = QHBoxLayout()
         lt_results = QHBoxLayout()
+        lt_results.setContentsMargins(0,0,0,0)
         lt_details_options = QHBoxLayout()
         lt_details = QVBoxLayout()
-        lt_texture_view = QHBoxLayout()
+        lt_details.setContentsMargins(10,0,0,0)
 
         # Organizing widgets in layouts
-        lt_results.addWidget(self.canvas, 5)
-        lt_results.addWidget(self.scrl_numbers_list, 1)
-        results_panel.setLayout(lt_results)
+        splt_results.addWidget(self.canvas)
+        splt_results.addWidget(self.scrl_numbers_list)
+        splt_results.setSizes([1000, 150])
+
+        splt_results.setContentsMargins(0,0,0,10)
         details_panel.setLayout(lt_details)
 
-        lt_details.addWidget(results_panel)
-        lt_details.addWidget(self.texture_info)
-        lt_details.addLayout(lt_texture_view)
-        lt_details.addWidget(self.texture_viewer)
+        lt_details.addWidget(splt_details)
+        splt_details.addWidget(splt_results)
+        splt_details.addWidget(self.texture_viewer)
         lt_details.addLayout(lt_details_options)
 
         lt_details_options.addWidget(self.btn_manual_update)
         lt_details_options.addWidget(self.cmb_work_mode)
-        lt_details_options.addStretch(3)
+        lt_details_options.addWidget(self.texture_info_panel)
+        lt_details_options.addStretch(1)
         lt_details_options.addWidget(self.btn_work_mode_settings)
 
-        lt_main.addWidget(splitter)
-        splitter.addWidget(self.file_explorer)
-        splitter.addWidget(details_panel)
+        lt_main.addWidget(splt_main)
+        splt_main.addWidget(self.file_explorer)
+        splt_main.addWidget(details_panel)
 
         self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -1001,6 +1012,7 @@ class MainWindow(QMainWindow):
         if not automatic_work_mode == WorkMode.MAX:
             self.cmb_work_mode.setCurrentIndex(automatic_work_mode.value)
         self.handle_update()
+        self.setWindowTitle("Mip Explorer - " + os.path.basename(selected_file))
 
     def force_update(self):
         self.handle_update(True)
@@ -1009,7 +1021,7 @@ class MainWindow(QMainWindow):
         if not os.path.isfile(selected_file):
             return
         pixmap = QPixmap(selected_file)
-        self.texture_info.update_info(selected_file, pixmap)
+        self.texture_info_panel.update_info(selected_file, pixmap)
         if is_mip_mappable(pixmap):
             self.texture_viewer.update_pixmap(pixmap)
             work_mode: WorkMode = WorkMode(self.cmb_work_mode.currentIndex())
@@ -1017,8 +1029,8 @@ class MainWindow(QMainWindow):
             update_plot(self.plt_mips, y_axis_values)
             self.plt_mips.set_xlabel("Mips")
             self.plt_mips.set_ylabel("Information per Pixel")
-            self.plt_mips.yaxis.set_major_locator(MaxNLocator(integer=True))
-            self.plt_mips.xaxis.set_major_locator(MaxNLocator(integer=True))
+            self.plt_mips.yaxis.set_major_locator(MaxNLocator(integer = True))
+            self.plt_mips.xaxis.set_major_locator(MaxNLocator(integer = True))
             self.plt_mips.set_visible(True)
             self.fig.set_visible(True)
             self.canvas.draw()
@@ -1057,6 +1069,7 @@ class MainWindow(QMainWindow):
         else:
             e.ignore()
 
+
 def exit_handler():
     Settings.current_directory = window.file_explorer.file_model.rootPath()
     Settings.save_settings()
@@ -1064,11 +1077,11 @@ def exit_handler():
 
 if __name__ == "__main__":
     cachepath = os.path.dirname(__file__) + "/Saved/CachedData.json"
-    if allow_caching:
+    if ALLOW_CACHING:
         ensure_cache_version(cachepath)
     use_dark_mode = is_system_dark()
-    bgColor = dark_color if use_dark_mode else light_color
-    color_fg = light_color if use_dark_mode else dark_color
+    bg_Color = DARK_COLOR if use_dark_mode else LIGHT_COLOR
+    fg_Color = LIGHT_COLOR if use_dark_mode else DARK_COLOR
     dir_path = os.path.dirname(os.path.realpath(__file__))
     app_icon = (
         dir_path + "\\Resources\\AppIcon_Light.png" if use_dark_mode else dir_path + "\\Resources\\AppIcon_Dark.png"
