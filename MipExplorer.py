@@ -178,6 +178,10 @@ def ensure_cache_version(cachepath: str):
     """
     is_version_correct = True
     try:
+        os.makedirs(os.path.dirname(cachepath), exist_ok = True)
+    except:
+        pass
+    try:
         with open(cachepath, "r", encoding="utf-8") as f:
             data = json.load(f)
         if "Version" in data:
@@ -189,8 +193,7 @@ def ensure_cache_version(cachepath: str):
             except:
                 pass
     except:
-        print("Failed to find the cache file")
-    open(cachepath, 'a').close()
+        pass
 
 
 def get_results_category(work_mode: WorkMode):
@@ -211,7 +214,7 @@ def try_getting_cached_results(filepath: str, cachepath: str) -> list[list[float
                 if last_time_modified <= cached_last_time_modified:
                     return data[category][filepath][0]
     except:
-        print("No cached results found")
+        pass
 
 
 def save_cached_results(y_axis_values: list[list[float]], filepath: str, cachepath: str, work_mode: WorkMode):
@@ -226,7 +229,6 @@ def save_cached_results(y_axis_values: list[list[float]], filepath: str, cachepa
             try:
                 data = json.load(file)
             except:
-                print("Failed to find an existing cache file. A new one will be created")
                 data = dict()
             if category in data:
                 data[category].update(cache_entry)
@@ -244,7 +246,7 @@ def save_cached_results(y_axis_values: list[list[float]], filepath: str, cachepa
         with open(cachepath, "w", encoding="utf-8") as file:
             json.dump(data, file, ensure_ascii=False, indent=4)
     except:
-        print("Failed to write cached results")
+        open(cachepath, 'a').close()
 
 
 def update_plot(plot, y_axis_values: list[list[float]]):
@@ -841,7 +843,7 @@ class Settings:
             if "current_directory" in data:
                 Settings.current_directory = data["current_directory"]
         except:
-            print("Failed to load settings")
+            print("No saved settings found. Using default settings")
 
     @staticmethod
     def save_settings():
