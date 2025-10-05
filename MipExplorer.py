@@ -262,7 +262,7 @@ def update_plot(plot, y_axis_values: list[list[float]]):
         plot.plot(y_axis_values, fg_Color)
 
 
-def update_list(list_widget, y_axis_values: list[list[float]], work_mode: WorkMode):
+def update_list(list_widget: QLabel, y_axis_values: list[list[float]], work_mode: WorkMode):
     if y_axis_values.__len__() == 0:
         list_widget.setText("   -   ")
         return
@@ -550,17 +550,22 @@ class FileExplorer(QWidget):
         lt_list = QVBoxLayout()
         lt_list.setContentsMargins(0,0,0,0)
         lt_controls = QHBoxLayout()
+        lt_search = QHBoxLayout()
         self.le_address = QLineEdit()
         self.tree_view = QTreeView()
         self.list_view = QListView()
         self.splitter = QSplitter()
         self.list_container = QWidget()
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText("Search Filenames")
+        self.search_bar.textEdited.connect(self.handle_search_term_changed)
+        lbl_search_caption = QLabel("🔍")
         self.cmb_icon_size = QComboBox()
         self.cmb_icon_size.addItems(["L\u0332ist", "M\u0332edium", "B\u0332ig"])
         self.cmb_icon_size.setToolTip("Icon Size")
         self.btn_batch = QPushButton(self.scan_directory_label)
         self.btn_batch.setToolTip("Calculates Mip 0's information density for all textures in this directory and sub-directories.\n"
-                                  "Stores the sorted results in a csv file.\n"
+                                  "Stores the sorted results in a csv file in the current directory.\n"
                                   "The work mode is determined automatically, and falls back to DATA if the mode can't be derived from the affix.")
         self.list_view.setMinimumWidth(15)
         self.tree_view.setMinimumWidth(15)
@@ -569,6 +574,9 @@ class FileExplorer(QWidget):
         self.splitter.addWidget(self.tree_view)
         self.splitter.addWidget(self.list_container)
         self.list_container.setLayout(lt_list)
+        lt_list.addLayout(lt_search)
+        lt_search.addWidget(lbl_search_caption)
+        lt_search.addWidget(self.search_bar)
         lt_list.addWidget(self.list_view)
         lt_list.addLayout(lt_controls)
         lt_controls.addWidget(self.cmb_icon_size)
@@ -586,6 +594,7 @@ class FileExplorer(QWidget):
         self.file_model.setIconProvider(IconProvider())
         self.file_model.setFilter(QDir.NoDotAndDotDot | QDir.Files | QDir.AllDirs)
         self.file_model.setNameFilters(SUPPORTEDFORMATS)
+        self.file_model.setNameFilterDisables(False)
 
         self.tree_view.setModel(self.dir_model)
         self.tree_view.hideColumn(1)
@@ -607,6 +616,12 @@ class FileExplorer(QWidget):
 
         if os.path.isdir(Settings.current_directory):
             self.jump_to_path(Settings.current_directory)
+
+    def handle_search_term_changed(self):
+            if self.search_bar.text() == "":
+                self.file_model.setNameFilters(SUPPORTEDFORMATS)
+            else:
+                self.file_model.setNameFilters(["*" + self.search_bar.text() + "*"])
 
     def handle_icon_size_changed(self):
         current_index = self.cmb_icon_size.currentIndex()
@@ -662,7 +677,7 @@ class FileExplorer(QWidget):
         progress.setValue(len(files))
         results_table_sorted = sorted(results_table)
         for entry in results_table_sorted:
-            entry[0] = "{:.2f}".format(entry[0])
+            entry[0] = "{:.3f}".format(entry[0])
         results_table_sorted.insert(0, ("Mip0 Information", "Filepath", "Dimensions", "has Alpha", "Mode"))
         time: str = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         try:
@@ -890,16 +905,29 @@ class MainWindow(QMainWindow):
 
         self.plt_mips = self.fig.add_subplot(111)
         self.plt_mips.set_xlabel("Mips")
-        self.plt_mips.set_ylabel("Information")
+        self.plt_mips.set_ylabel("Information/Pixel")
 
         self.canvas = FigureCanvasQTAgg(self.fig)
         self.canvas.draw()
 
         # Widgets
         self.btn_manual_update = QPushButton("🔃 R\u0332efresh")
+        self.btn_manual_update.setToolTip("Re-calculates the graph for the currently selected texture")
         self.btn_manual_update.clicked.connect(self.force_update)
         self.cmb_work_mode = QComboBox()
         self.cmb_work_mode.addItems(["🎨 C\u0332olor", "📅 D\u0332ata", "🚦 Cha\u0332nnels", "⬆️ N\u0332ormal"])
+        self.cmb_work_mode.setToolTip("🎨 Color:   When calculating the differences between mips, the color channels are weighted according to how sensible the human eye is to them.\n"
+                                      "Use this for textures shown directly to the user, like base color or UI textures.\n"
+                                      "\n"
+                                      "📅 Data:    When calculating the differences between mips, the color channels are weighted equally.\n"
+                                      "Use this for textures containing non-color information: Roughness, Metallic, AO, etc...\n"
+                                      "\n"
+                                      "🚦Channels: The differences are calculated for each channel individually.\n"
+                                      "Use this for packed textures, to see the graph for each channel.\n"
+                                      "\n"
+                                      "⬆️ Normal:  Each mip is normalized, to prevent the normal vector from getting shorter.\n"
+                                      "To calculate the difference, the dot product between the vectors is calculated\n"
+                                      "Use this for (tangent space) normal maps")
         self.cmb_work_mode.currentIndexChanged.connect(self.handle_update)
         self.btn_work_mode_settings = SquareButton("⚙️ S\u0332ettings")
         self.btn_work_mode_settings.setToolTip(self.tr("Change the affixes to search for when setting the work mode"))
@@ -1027,8 +1055,6 @@ class MainWindow(QMainWindow):
             work_mode: WorkMode = WorkMode(self.cmb_work_mode.currentIndex())
             y_axis_values = get_plot_values(selected_file, work_mode, force_update)
             update_plot(self.plt_mips, y_axis_values)
-            self.plt_mips.set_xlabel("Mips")
-            self.plt_mips.set_ylabel("Information per Pixel")
             self.plt_mips.yaxis.set_major_locator(MaxNLocator(integer = True))
             self.plt_mips.xaxis.set_major_locator(MaxNLocator(integer = True))
             self.plt_mips.set_visible(True)
