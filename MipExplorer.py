@@ -101,14 +101,19 @@ class IconProvider(QFileIconProvider):
         super().__init__()
         self.ICON_SIZE = QSize(64,64)
         self.ACCEPTED_FORMATS = (".jpg",".tiff",".png", ".webp", ".tga")
+        self.cached_icons = {}
 
     def icon(self, type: QFileIconProvider.IconType):
         try:
-            fn: str = type.filePath()
-            if fn.casefold().endswith(self.ACCEPTED_FORMATS):
+            filename: str = type.filePath()
+            if filename.casefold().endswith(self.ACCEPTED_FORMATS):
+                if filename in self.cached_icons:
+                    return self.cached_icons[filename]
                 a = QPixmap(self.ICON_SIZE)
-                a.load(fn)
-                return QIcon(a)
+                a.load(filename)
+                icon = QIcon(a)
+                self.cached_icons.update({filename: icon})
+                return icon
             else:
                 return super().icon(type)
         except:
@@ -596,7 +601,8 @@ class FileExplorer(QWidget):
         self.dir_model.setFilter(QDir.NoDotAndDotDot | QDir.AllDirs)
 
         self.file_model = QFileSystemModel()
-        self.file_model.setIconProvider(IconProvider())
+        self.icon_provider = IconProvider()
+        self.file_model.setIconProvider(self.icon_provider)
         self.file_model.setFilter(QDir.NoDotAndDotDot | QDir.Files | QDir.AllDirs)
         self.file_model.setNameFilters(SUPPORTEDFORMATS)
         self.file_model.setNameFilterDisables(False)
@@ -751,7 +757,7 @@ class WorkModeSettingsDialog(QDialog):
         lt_lists = QFormLayout()
         lt_main = QVBoxLayout()
 
-        lbl_color_affixes = QLabel("Color: ")
+        lbl_color_affixes = QLabel("🎨 Color Affixes: ")
         lbl_color_affixes.setToolTip(
             self.tr(
                 "Files using any of these affixes are interpreted as color textures.\n"
@@ -761,7 +767,7 @@ class WorkModeSettingsDialog(QDialog):
         self.le_color_affixes.setToolTip(
             self.tr("Separate affixes with a comma. Whitespaces are removed automatically."))
 
-        lbl_data_affixes = QLabel("Data: ")
+        lbl_data_affixes = QLabel("📅 Data Affixes: ")
         lbl_data_affixes.setToolTip(
             self.tr("Files using any of these affixes are interpreted as data textures.\n"
                     "When calculating the luminance differences between pixels, all channels have the same weight."))
@@ -770,7 +776,7 @@ class WorkModeSettingsDialog(QDialog):
         self.le_data_affixes.setToolTip(
             self.tr("Separate affixes with a comma. Whitespaces are removed automatically."))
 
-        lbl_channels_affixes = QLabel("Channels: ")
+        lbl_channels_affixes = QLabel("🚦 Channels Affixes: ")
         lbl_channels_affixes.setToolTip(
             self.tr("Files using any of these affixes are interpreted as packed textures.\n"
                     "The differences between the mip maps are calculated for each channel separately."))
@@ -778,7 +784,7 @@ class WorkModeSettingsDialog(QDialog):
         self.le_channels_affixes = QLineEdit(", ".join(str(x) for x in Settings.channels_affixes))
         self.le_channels_affixes.setToolTip(self.tr("Separate affixes with a comma. Whitespaces are removed automatically."))
 
-        lbl_normal_affixes = QLabel("Normal: ")
+        lbl_normal_affixes = QLabel("⬆️ Normal Affixes: ")
         lbl_normal_affixes.setToolTip(
             self.tr("Files using any of these affixes are interpreted as normal maps.\n"
                     "The vectors in each mip get normalized, and the z component is used for comparisons"))
@@ -941,6 +947,7 @@ class MainWindow(QMainWindow):
         self.texture_info_panel = InfoPanel()
         self.file_explorer = FileExplorer()
         self.file_explorer.file_changed.connect(self.handle_file_changed)
+        results_right_column = QWidget()
         self.scrl_numbers_list = QScrollArea()
         self.numbers_list = QLabel("             ")
         self.scrl_numbers_list.setWidget(self.numbers_list)
@@ -961,13 +968,18 @@ class MainWindow(QMainWindow):
         lt_main = QHBoxLayout()
         lt_results = QHBoxLayout()
         lt_results.setContentsMargins(0,0,0,0)
+        lt_results_right_column = QVBoxLayout()
         lt_details_options = QHBoxLayout()
         lt_details = QVBoxLayout()
         lt_details.setContentsMargins(10,0,0,0)
 
         # Organizing widgets in layouts
+        results_right_column.setLayout(lt_results_right_column)
+        lt_results_right_column.addWidget(self.btn_manual_update)
+        lt_results_right_column.addWidget(self.cmb_work_mode)
+        lt_results_right_column.addWidget(self.scrl_numbers_list)
         splt_results.addWidget(self.canvas)
-        splt_results.addWidget(self.scrl_numbers_list)
+        splt_results.addWidget(results_right_column)
         splt_results.setSizes([1000, 150])
 
         splt_results.setContentsMargins(0,0,0,10)
@@ -978,8 +990,6 @@ class MainWindow(QMainWindow):
         splt_details.addWidget(self.texture_viewer)
         lt_details.addLayout(lt_details_options)
 
-        lt_details_options.addWidget(self.btn_manual_update)
-        lt_details_options.addWidget(self.cmb_work_mode)
         lt_details_options.addWidget(self.texture_info_panel)
         lt_details_options.addStretch(1)
         lt_details_options.addWidget(self.btn_work_mode_settings)
