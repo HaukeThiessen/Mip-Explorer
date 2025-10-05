@@ -104,8 +104,8 @@ class IconProvider(QFileIconProvider):
 
     def icon(self, type: QFileIconProvider.IconType):
         try:
-            fn = type.filePath()
-            if fn.endswith(self.ACCEPTED_FORMATS):
+            fn: str = type.filePath()
+            if fn.casefold().endswith(self.ACCEPTED_FORMATS):
                 a = QPixmap(self.ICON_SIZE)
                 a.load(fn)
                 return QIcon(a)
