@@ -388,7 +388,10 @@ class InfoPanel(QWidget):
         lt_main.addWidget(self.lbl_size_value)
 
     def update_info(self, filepath, pixmap: QPixmap):
-        self.lbl_res_value.setText(str(pixmap.size().height()) + " x " + str(pixmap.size().width()))
+        res_value_caption = str(pixmap.size().height()) + " x " + str(pixmap.size().width())
+        if not is_mip_mappable(pixmap):
+            res_value_caption += " ⚠️ Not using powers of two"
+        self.lbl_res_value.setText(res_value_caption)
         file_size = os.path.getsize(filepath)
         if file_size < 1048576:  # Smaller than 1 MB
             self.lbl_size_value.setText("{:.2f}".format(os.path.getsize(filepath) / 1024.0) + " KB")
