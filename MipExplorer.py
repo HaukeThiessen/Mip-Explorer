@@ -99,24 +99,44 @@ class IconProvider(QFileIconProvider):
     """
     def __init__(self) -> None:
         super().__init__()
-        self.ICON_SIZE = QSize(64,64)
+        self.ICON_SIZE = QSize(64, 64)
         self.ACCEPTED_FORMATS = (".jpg",".tiff",".png", ".webp", ".tga")
         self.cached_icons = {}
+        self.use_thumbnails = False
+
+        # Create folder icon
+        folder_picture = QPixmap(QSize(32, 32))
+        folder_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\FolderIcon.png")
+        self.folder_icon = QIcon(folder_picture)
+
+        # Create csv icon
+        csv_picture = QPixmap(QSize(32, 32))
+        csv_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\csvIcon.png")
+        self.csv_icon = QIcon(csv_picture)
 
     def icon(self, type: QFileIconProvider.IconType):
+        filename: str = ""
         try:
             filename: str = type.filePath()
-            if filename.casefold().endswith(self.ACCEPTED_FORMATS):
-                if filename in self.cached_icons:
-                    return self.cached_icons[filename]
-                a = QPixmap(self.ICON_SIZE)
-                a.load(filename)
-                icon = QIcon(a)
-                self.cached_icons.update({filename: icon})
-                return icon
-            else:
-                return super().icon(type)
         except:
+            pass
+
+        if not self.use_thumbnails:
+            if os.path.isdir(filename):
+              return self.folder_icon
+            if filename.casefold().endswith(".csv"):
+                return self.csv_icon
+            return QIcon()
+
+        if filename.casefold().endswith(self.ACCEPTED_FORMATS):
+            if filename in self.cached_icons:
+                return self.cached_icons[filename]
+            a = QPixmap(self.ICON_SIZE)
+            a.load(filename)
+            icon = QIcon(a)
+            self.cached_icons.update({filename: icon})
+            return icon
+        else:
             return super().icon(type)
 
 
@@ -549,7 +569,7 @@ class TextureViewer(QWidget):
 
 
 class FileExplorer(QWidget):
-    file_changed = Signal()
+    file_selection_changed = Signal()
     scan_directory_label: str = "🗃️ Scan Directory"
 
     def __init__(self, *args, **kwargs):
@@ -572,7 +592,9 @@ class FileExplorer(QWidget):
         lbl_search_caption = QLabel("🔍")
         self.cmb_icon_size = QComboBox()
         self.cmb_icon_size.addItems(["L\u0332ist", "M\u0332edium", "B\u0332ig"])
-        self.cmb_icon_size.setToolTip("Icon Size")
+        self.cmb_icon_size.setToolTip("Controls how the files are displayed.\n"
+                                      "'List' doesn't show thumbnails, making it faster when navigating directories with a lot of files.\n"
+                                      "'Medium' and 'Big' show thumbnails, but thumbnail generation can be slow.")
         self.btn_batch = QPushButton(self.scan_directory_label)
         self.btn_batch.setToolTip("Calculates Mip 0's information density for all textures in this directory and sub-directories.\n"
                                   "Stores the sorted results in a csv file in the current directory.\n"
@@ -600,27 +622,23 @@ class FileExplorer(QWidget):
         self.dir_model.setRootPath(path)
         self.dir_model.setFilter(QDir.NoDotAndDotDot | QDir.AllDirs)
 
-        self.file_model = QFileSystemModel()
         self.icon_provider = IconProvider()
-        self.file_model.setIconProvider(self.icon_provider)
-        self.file_model.setFilter(QDir.NoDotAndDotDot | QDir.Files | QDir.AllDirs)
-        self.file_model.setNameFilters(SUPPORTEDFORMATS)
-        self.file_model.setNameFilterDisables(False)
+        self.file_model = QFileSystemModel()
+        self.init_file_model()
+
 
         self.tree_view.setModel(self.dir_model)
         self.tree_view.hideColumn(1)
         self.tree_view.hideColumn(2)
         self.tree_view.hideColumn(3)
-        self.list_view.setModel(self.file_model)
 
         self.tree_view.setRootIndex(self.dir_model.index(path))
         self.list_view.setRootIndex(self.file_model.index(path))
         self.list_view.setResizeMode(QListView.ResizeMode.Adjust)
 
-        self.tree_view.clicked.connect(self.on_clicked)
-        self.tree_view.selectionModel().currentChanged.connect(self.on_clicked)
-        self.list_view.selectionModel().selectionChanged.connect(self.handle_selection_changed)
-        self.list_view.doubleClicked.connect(self.open_current_directory)
+        self.tree_view.clicked.connect(self.handle_selected_folder_changed)
+        self.tree_view.selectionModel().currentChanged.connect(self.handle_selected_folder_changed)
+        self.list_view.doubleClicked.connect(self.open_current_directory_external)
         self.le_address.textEdited.connect(self.handle_address_changed)
         self.cmb_icon_size.currentIndexChanged.connect(self.handle_icon_size_changed)
         self.btn_batch.clicked.connect(self.process_current_directory)
@@ -636,17 +654,30 @@ class FileExplorer(QWidget):
 
     def handle_icon_size_changed(self):
         current_index = self.cmb_icon_size.currentIndex()
+        current_directory = self.file_model.rootPath()
         if current_index == 0:
+            self.icon_provider.use_thumbnails = False
             self.list_view.setViewMode(QListView.ViewMode.ListMode)
             self.list_view.setGridSize(QSize(-1, -1))
             self.list_view.setIconSize(QSize(-1, -1))
         else:
             sizes = [128, 256]
             new_size = sizes[current_index - 1]
+            self.icon_provider.use_thumbnails = True
             self.list_view.setViewMode(QListView.ViewMode.IconMode)
             self.list_view.setGridSize(QSize(new_size, new_size))
             self.list_view.setIconSize(QSize(new_size - 16, new_size - 16))
-        QWidget.update(self.list_view)
+        self.file_model = QFileSystemModel()
+        self.init_file_model()
+        self.jump_to_path(current_directory)
+
+    def init_file_model(self):
+        self.file_model.setIconProvider(self.icon_provider)
+        self.file_model.setFilter(QDir.NoDotAndDotDot | QDir.Files | QDir.AllDirs)
+        self.file_model.setNameFilterDisables(False)
+        self.handle_search_term_changed()
+        self.list_view.setModel(self.file_model)
+        self.list_view.selectionModel().selectionChanged.connect(self.handle_file_selection_changed)
 
     def process_current_directory(self):
         """
@@ -701,7 +732,7 @@ class FileExplorer(QWidget):
         self.btn_batch.setText(self.scan_directory_label)
         self.btn_batch.setEnabled(True)
 
-    def open_current_directory(self):
+    def open_current_directory_external(self):
         selected_file_path = self.list_view.model().filePath(self.list_view.selectedIndexes()[0])
         if os.path.isfile(selected_file_path):
             selected_file_path = os.path.normpath(selected_file_path)
@@ -712,7 +743,7 @@ class FileExplorer(QWidget):
     def open_parent_directory(self):
         self.jump_to_path(str(Path(self.file_model.rootPath()).parent))
 
-    def on_clicked(self, index):
+    def handle_selected_folder_changed(self, index):
         path = self.dir_model.fileInfo(index).absoluteFilePath()
         self.list_view.setRootIndex(self.file_model.setRootPath(path))
         self.le_address.setText(path)
@@ -722,23 +753,25 @@ class FileExplorer(QWidget):
             return
         self.jump_to_path(self.le_address.text())
 
-    def handle_selection_changed(self):
+    def handle_file_selection_changed(self):
         global selected_file
         selected_file = self.list_view.model().filePath(self.list_view.selectedIndexes()[0])
         self.le_address.setText(selected_file)
-        self.file_changed.emit()
+        self.file_selection_changed.emit()
 
     def jump_to_path(self, target_path: str):
         # TODO: Consistent behavior, select file if applicable and jump to correct location
         if os.path.isfile(target_path):
             self.list_view.setRootIndex(self.file_model.setRootPath(target_path))
             target_path = os.path.dirname(target_path)
+            return
         if os.path.isdir(target_path):
             self.le_address.setText(target_path)
             new_index = self.dir_model.index(target_path)
             self.tree_view.scrollTo(new_index)
             self.tree_view.expand(new_index)
             self.tree_view.setCurrentIndex(new_index)
+            self.list_view.setRootIndex(self.file_model.setRootPath(target_path))
 
 
 class WorkModeSettingsDialog(QDialog):
@@ -946,7 +979,7 @@ class MainWindow(QMainWindow):
 
         self.texture_info_panel = InfoPanel()
         self.file_explorer = FileExplorer()
-        self.file_explorer.file_changed.connect(self.handle_file_changed)
+        self.file_explorer.file_selection_changed.connect(self.handle_file_changed)
         results_right_column = QWidget()
         self.scrl_numbers_list = QScrollArea()
         self.numbers_list = QLabel("             ")
@@ -1011,7 +1044,7 @@ class MainWindow(QMainWindow):
             key = event.key()
             if widget is self.file_explorer:
                 if key == Qt.Key_Return or key == Qt.Key_Right:
-                    self.file_explorer.open_current_directory()
+                    self.file_explorer.open_current_directory_external()
                     return True
                 if key == Qt.Key_Left:
                     self.file_explorer.open_parent_directory()
