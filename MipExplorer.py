@@ -73,6 +73,7 @@ SUPPORTEDFORMATS = {
     "*.sr",
     "*.ras",
     "*.tiff",
+    "*.tga",
     "*.tif",
     "*.pic",
     "*.csv",
@@ -159,7 +160,12 @@ def normalize_RGB(vec):
 
 def calculate_deltas(filepath: str, b_all_mips: bool, b_normalize_mips: bool = False) -> list[list[float]]:
     try:
-        current_mip = cv2.imread(filepath, cv2.IMREAD_UNCHANGED)
+        if filepath.endswith(".tga"):
+            cap = cv2.VideoCapture(filepath, cv2.CAP_FFMPEG)
+            current_mip = np.empty(0)
+            current_mip = cap.read(current_mip)[1]
+        else:
+            current_mip = cv2.imread(filepath, cv2.IMREAD_UNCHANGED)
         current_mip = current_mip.astype(float) / 255
         if b_normalize_mips:
             current_mip = current_mip[:,:,:3]
