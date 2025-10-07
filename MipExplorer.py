@@ -863,6 +863,7 @@ class Settings:
     normal_affixes:   list[str] = []
     use_automatic_work_mode = False
 
+    current_work_mode: WorkMode = WorkMode.COLOR
     current_directory = ""
 
     settings_path: str = os.path.dirname(__file__) + "\\Saved\\Settings.json"
@@ -884,6 +885,8 @@ class Settings:
                 Settings.use_automatic_work_mode = data["use_automatic_work_mode"]
             if "current_directory" in data:
                 Settings.current_directory = data["current_directory"]
+            if "current_work_mode" in data:
+                Settings.current_work_mode = WorkMode(data["current_work_mode"])
         except:
             print("No saved settings found. Using default settings")
 
@@ -904,7 +907,8 @@ class Settings:
                         "channels_affixes":       Settings.channels_affixes,
                         "normal_affixes":         Settings.normal_affixes,
                         "use_automatic_work_mode":Settings.use_automatic_work_mode,
-                        "current_directory":      Settings.current_directory
+                        "current_directory":      Settings.current_directory,
+                        "current_work_mode":      Settings.current_work_mode.value
                     },
                     f,
                     ensure_ascii = False,
@@ -958,6 +962,7 @@ class MainWindow(QMainWindow):
         self.btn_manual_update = QPushButton("🔃 R\u0332efresh")
         self.btn_manual_update.setToolTip("Re-calculates the graph for the currently selected texture")
         self.btn_manual_update.clicked.connect(self.force_update)
+
         self.cmb_work_mode = QComboBox()
         self.cmb_work_mode.addItems(["🎨 C\u0332olor", "📅 D\u0332ata", "🚦 Cha\u0332nnels", "⬆️ N\u0332ormal"])
         self.cmb_work_mode.setToolTip("🎨 Color:   When calculating the differences between mips, the color channels are weighted according to how sensible the human eye is to them.\n"
@@ -973,6 +978,8 @@ class MainWindow(QMainWindow):
                                       "To calculate the difference, the dot product between the vectors is calculated\n"
                                       "Use this for (tangent space) normal maps")
         self.cmb_work_mode.currentIndexChanged.connect(self.handle_update)
+        self.cmb_work_mode.setCurrentIndex(Settings.current_work_mode.value)
+
         self.btn_work_mode_settings = SquareButton("⚙️ S\u0332ettings")
         self.btn_work_mode_settings.setToolTip(self.tr("Change the affixes to search for when setting the work mode"))
         self.btn_work_mode_settings.clicked.connect(self.open_work_mode_settings)
@@ -1094,13 +1101,14 @@ class MainWindow(QMainWindow):
         self.handle_update(True)
 
     def handle_update(self, force_update: bool = False):
+        work_mode: WorkMode = WorkMode(self.cmb_work_mode.currentIndex())
+        Settings.current_work_mode = work_mode
         if not os.path.isfile(selected_file):
             return
         pixmap = QPixmap(selected_file)
         self.texture_info_panel.update_info(selected_file, pixmap)
         if is_mip_mappable(pixmap):
             self.texture_viewer.update_pixmap(pixmap)
-            work_mode: WorkMode = WorkMode(self.cmb_work_mode.currentIndex())
             y_axis_values = get_plot_values(selected_file, work_mode, force_update)
             update_plot(self.plt_mips, y_axis_values)
             self.plt_mips.yaxis.set_major_locator(MaxNLocator(integer = True))
