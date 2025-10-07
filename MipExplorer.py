@@ -706,7 +706,7 @@ class FileExplorer(QWidget):
             progress.setValue(i)
             pixmap = QPixmap(Path(files[i]))
             if is_mip_mappable(pixmap):
-                deltas: list[list[float]] = calculate_deltas(files[i], False)
+                deltas: list[list[float]] = calculate_deltas(str(files[i]), False)
                 work_mode = get_automatic_work_mode(files[i])
                 if work_mode == WorkMode.MAX or work_mode == WorkMode.CHANNELS:
                     work_mode = WorkMode.DATA
