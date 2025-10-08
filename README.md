@@ -28,7 +28,7 @@ When clicking on the "Scan Directory" button, the Mip Explorer calculates the in
 For more information about how the Mip Explorer came to be, check out **[this blog post](https://haukethiessen.com/introducing-the-mip-explorer/)**.
 
 # Work modes:
-The Mip Explorer offers 3 modes for different types of textures:
+The Mip Explorer offers 4 modes for different types of textures:
 
 🎨 For color textures, the luminosity is calculated.
 
@@ -46,9 +46,9 @@ It depends. The option to show the information density per mip map is not intend
 ## What do I need to run the Mip Explorer?
 Mip Explorer has been developed and tested on Windows 11. Some features (dark/light UI mode, drag-and-drop of files from outside) depend on Windows. Here and there, I've also implemented alternatives for MacOS, but I haven't tested them myself, and further work would be needed to make it run. If you do test it on a Mac, please let me know your results. Same if you're a Linux user.
 
-The tool is completely written in Python 3.13.2 and has some dependencies that are not part of the standard Python library. Please see the included **requirements.txt** for details.
+The tool is completely written in Python **3.13.2** and has some dependencies that are not part of the standard Python library. Please see the included **requirements.txt** for details.
 
-There is also a batch file, called InstallRequiredLibs.bat in the root directory, which you can run to install the latest versions of the required libraries.
+There is also a batch file, called **InstallRequiredLibs.bat** in the root directory, which you can run to install the latest versions of the required libraries.
 
 # Which file formats are supported?
 The supported formats are: bmp, dib, jp(e)g, jpe, jp2, png, webp, pbm, pgm, ppm, pxm, pnm, sr, ras, tif(f), tga and pic. 
@@ -84,4 +84,5 @@ freely, subject to the following restrictions:
 
 3. This notice may not be removed or altered from any source distribution.
 ```
+
 
