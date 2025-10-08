@@ -110,10 +110,36 @@ class IconProvider(QFileIconProvider):
         folder_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\FolderIcon.png")
         self.folder_icon = QIcon(folder_picture)
 
-        # Create csv icon
+        # Create Icons
         csv_picture = QPixmap(QSize(32, 32))
         csv_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\csvIcon.png")
         self.csv_icon = QIcon(csv_picture)
+
+        jpg_picture = QPixmap(QSize(32, 32))
+        jpg_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\jpgIcon.png")
+        self.jpg_icon = QIcon(jpg_picture)
+
+        tiff_picture = QPixmap(QSize(32, 32))
+        tiff_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\tiffIcon.png")
+        self.tiff_icon = QIcon(tiff_picture)
+
+        png_picture = QPixmap(QSize(32, 32))
+        png_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\pngIcon.png")
+        self.png_icon = QIcon(png_picture)
+
+        tga_picture = QPixmap(QSize(32, 32))
+        tga_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\tgaIcon.png")
+        self.tga_icon = QIcon(tga_picture)
+
+        bmp_picture = QPixmap(QSize(32, 32))
+        bmp_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\bmpIcon.png")
+        self.bmp_icon = QIcon(bmp_picture)
+
+        webp_picture = QPixmap(QSize(32, 32))
+        webp_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\webpIcon.png")
+        self.webp_icon = QIcon(webp_picture)
+
+
 
     def icon(self, type: QFileIconProvider.IconType):
         filename: str = ""
@@ -127,6 +153,18 @@ class IconProvider(QFileIconProvider):
               return self.folder_icon
             if filename.casefold().endswith(".csv"):
                 return self.csv_icon
+            if filename.casefold().endswith(".jpg") or filename.casefold().endswith(".jpeg"):
+                return self.jpg_icon
+            if filename.casefold().endswith(".tiff") or filename.casefold().endswith(".tif"):
+                return self.tiff_icon
+            if filename.casefold().endswith(".png"):
+                return self.png_icon
+            if filename.casefold().endswith(".tga"):
+                return self.tga_icon
+            if filename.casefold().endswith(".bmp"):
+                return self.bmp_icon
+            if filename.casefold().endswith(".webp"):
+                return self.webp_icon
             return QIcon()
 
         if filename.casefold().endswith(self.ACCEPTED_FORMATS):
