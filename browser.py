@@ -47,8 +47,9 @@ class IconProvider(QFileIconProvider):
     def __init__(self) -> None:
         super().__init__()
         self.ICON_SIZE = QSize(64, 64)
-        self.ACCEPTED_FORMATS = (".jpg",".tiff",".png", ".webp", ".tga")
-        self.cached_icons = {}
+        self.MAX_THUMBNAIL_SIZE: int = 240
+        self.ACCEPTED_FORMATS: tuple[str, ...] = (".jpg",".tiff",".png", ".webp", ".tga")
+        self.cached_icons: dict[str, QIcon] = {}
         self.use_thumbnails: bool = False
 
         # Create folder icon
@@ -85,6 +86,13 @@ class IconProvider(QFileIconProvider):
         webp_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\webpIcon.png")
         self.webp_icon = QIcon(webp_picture)
 
+    def calculate_thumbnail_size(self, original_size: QSize) -> QSize:
+        aspect_ratio: float = float(original_size.width()) / float(original_size.height())
+        if aspect_ratio > 1.0:
+            return QSize(self.MAX_THUMBNAIL_SIZE, int(self.MAX_THUMBNAIL_SIZE / aspect_ratio))
+        else:
+            return  QSize(int(self.MAX_THUMBNAIL_SIZE * aspect_ratio), self.MAX_THUMBNAIL_SIZE)
+
     def icon(self, type: QFileIconProvider.IconType) -> QIcon:
         filename: str = ""
         try:
@@ -116,7 +124,7 @@ class IconProvider(QFileIconProvider):
                 return self.cached_icons[filename]
             picture = QPixmap(self.ICON_SIZE)
             picture.load(filename)
-            icon = QIcon(picture)
+            icon = QIcon(picture.scaled(self.calculate_thumbnail_size(picture.size())))
             self.cached_icons.update({filename: icon})
             return icon
         else:
