@@ -24,9 +24,12 @@
 #  ---------------------------------------------------------------------------
 
 
+import core
+import math
+
 from PySide6.QtCore import *
 from PySide6.QtWidgets import *
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QImage
 
 
 class simple_scroller(QScrollArea):
@@ -47,6 +50,9 @@ class TextureViewer(QWidget):
         QWidget.__init__(self)
         self.texture_size = 300
         self.original_texture_size = [0,0]
+        self.texture_filepath: str = ""
+        self.texture_type: core.TextureType  = core.TextureType.COLOR
+        self.displayed_mip: int = 0
 
         # Widgets
         self.lbl_preview = QLabel()
@@ -85,6 +91,10 @@ class TextureViewer(QWidget):
                                      "\nShortcut key: 0")
         self.btn_fit_size.clicked.connect(self.set_fit_size)
 
+        self.cmb_mip = QComboBox()
+        self.cmb_mip.setToolTip("Select the mip to display")
+        self.cmb_mip.currentIndexChanged.connect(self.display_correct_mip)
+
         # Layouts
         lt_main = QHBoxLayout(self)
         lt_main.setContentsMargins(0,0,0,0)
@@ -97,15 +107,46 @@ class TextureViewer(QWidget):
         lt_size_controls.addWidget(self.btn_original_size)
         lt_size_controls.addWidget(self.btn_fill_size)
         lt_size_controls.addWidget(self.btn_fit_size)
+        lt_size_controls.addWidget(self.cmb_mip)
 
-        self.pixmap = QPixmap("")
-        self.lbl_preview.setPixmap(self.pixmap)
+        self.mip0_pixmap = QPixmap("")
+        self.lbl_preview.setPixmap(self.mip0_pixmap)
 
-    def update_pixmap(self, pixmap: QPixmap):
-        self.pixmap = pixmap
-        self.original_texture_size = [pixmap.size().width(), pixmap.size().height()]
+    def display_correct_mip(self):
+        self.displayed_mip = self.cmb_mip.currentIndex()
+        selected_mip: int = self.cmb_mip.currentIndex()
+        dimensions: tuple = (int(self.mip0_pixmap.width() / (2**selected_mip)), int(self.mip0_pixmap.height() / (2**selected_mip)))
+        if self.texture_type == core.TextureType.NORMAL and selected_mip != 0:
+            original_texture = core.get_image_from_file(self.texture_filepath)
+            mip = core.resize(original_texture, 1.0 / (2**selected_mip))
+            mip = core.transform_normal_map_to_vectors(mip)
+            mip = core.normalize_RGB(mip)
+            mip = core.transform_vectors_to_normal_map(mip)
+            mip = core.float_to_uint8(mip)
+            height, width, channel = mip.shape
+            bytesPerLine = channel * width
+            format = QImage.Format.Format_BGR888
+            qImg = QImage(mip.data, width, height, bytesPerLine, format)
+            pixmap: QPixmap = QPixmap.fromImage(qImg)
+        else :
+            pixmap: QPixmap = self.mip0_pixmap.scaled(dimensions[0], dimensions[1], Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
         self.lbl_preview.setPixmap(pixmap)
         self.update_texture_view()
+        self.lbl_preview.setToolTip('Mip ' + str(selected_mip) + ", " + str(dimensions[0]) + "x" + str(dimensions[1]))
+
+    def update_pixmap(self, pixmap: QPixmap):
+        self.mip0_pixmap = pixmap
+        self.original_texture_size = [pixmap.size().width(), pixmap.size().height()]
+        shorter_side: int = min(self.original_texture_size[0], self.original_texture_size[1])
+        num_mips: int = int(math.log2(shorter_side))
+        self.cmb_mip.blockSignals(True)
+        self.cmb_mip.clear()
+        for x in range(num_mips):
+         self.cmb_mip.addItem("Mip " + str(x))
+        self.cmb_mip.setCurrentIndex(min(self.displayed_mip, num_mips))
+        self.cmb_mip.blockSignals(False)
+        self.display_correct_mip()
+
 
     def handle_size_changed(self):
         self.texture_size = self.sldr_size.value()

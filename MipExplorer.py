@@ -55,7 +55,7 @@ CACHESIZE = 100
 
 # The version of the cache generation method. Change this if you change the way the cache is generated, to ensure
 # that the tool doesn't try to use outdated caches
-CACHEVERSION: int = 3
+CACHEVERSION: int = 4
 
 ALLOW_CACHING: bool = True
 
@@ -281,8 +281,6 @@ class TextureTypeSettingsDialog(QDialog):
         self.update()
 
 
-
-
 class MainWindow(QMainWindow):
     file_browser: FileBrowser = []
 
@@ -409,6 +407,8 @@ class MainWindow(QMainWindow):
         pixmap = QPixmap(self.file_browser.selected_file)
         self.texture_info_panel.update_info(self.file_browser.selected_file, pixmap)
         if core.is_mip_mappable(pixmap.size().width(), pixmap.size().height()):
+            self.texture_viewer.texture_filepath = self.file_browser.selected_file
+            self.texture_viewer.texture_type = texture_type
             self.texture_viewer.update_pixmap(pixmap)
             y_axis_values = get_plot_values(self.file_browser.selected_file, texture_type, force_update)
             self.results_viewer.update_plot(y_axis_values)

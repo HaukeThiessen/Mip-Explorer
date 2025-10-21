@@ -70,6 +70,48 @@ def normalize_RGB(vec):
     vec[:,:,2] = vec[:,:,2] / length
     return vec
 
+def get_image_from_file(filepath: str):
+    try:
+        if filepath.endswith(".tga"):
+            cap = cv2.VideoCapture(filepath, cv2.CAP_FFMPEG)
+            image = np.empty(0)
+            image = cap.read(image)[1]
+        else:
+            image = cv2.imread(filepath, cv2.IMREAD_UNCHANGED)
+        image = image.astype(float) / 255
+        return image
+    except:
+        print("Failed to open " + filepath)
+        pass
+
+
+def float_to_uint8(texture):
+    texture = texture * 255
+    return texture.astype(np.uint8)
+
+
+def transform_normal_map_to_vectors(image, normalize: bool = True):
+    """
+    Since normal maps can only store values in a 0-1 range instead of -1-1, an offset and 2x scale is needed to get a proper normal vector
+    """
+    image = image[:,:,:3]
+    image = image - [0.5, 0.5, 0.5]
+    image = image * [2.0, 2.0, 2.0]
+    if normalize:
+        image = normalize_RGB(image)
+    return image
+
+def transform_vectors_to_normal_map(image):
+    """
+    Since normal maps can only store values in a 0-1 range instead of -1-1, an offset and 2x scale is needed to get a proper normal vector
+    """
+    image = image[:,:,:3]
+    image = image + [1.0, 1.0, 1.0]
+    image = image / [2.0, 2.0, 2.0]
+    return image
+
+def resize(texture, scale: float):
+    return cv2.resize(texture, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
 
 def calculate_raw_deltas(filepath: str, b_all_mips: bool, is_normal_map: bool = False) -> list[list[float]]:
     """
@@ -80,18 +122,9 @@ def calculate_raw_deltas(filepath: str, b_all_mips: bool, is_normal_map: bool = 
     The function will fail if the file format is not one of the SUPPORTEDFORMATS.
     """
     try:
-        if filepath.endswith(".tga"):
-            cap = cv2.VideoCapture(filepath, cv2.CAP_FFMPEG)
-            current_mip = np.empty(0)
-            current_mip = cap.read(current_mip)[1]
-        else:
-            current_mip = cv2.imread(filepath, cv2.IMREAD_UNCHANGED)
-        current_mip = current_mip.astype(float) / 255
+        current_mip = get_image_from_file(filepath)
         if is_normal_map:
-            current_mip = current_mip[:,:,:3]
-            current_mip = current_mip - [0.5, 0.5, 0.0]
-            current_mip = current_mip * [2.0, 2.0, 1.0]
-            current_mip = normalize_RGB(current_mip)
+            current_mip = transform_normal_map_to_vectors(current_mip)
         shorter_edge = min(current_mip.shape[0], current_mip.shape[1])
         loops: int = 1
         if b_all_mips:
@@ -99,11 +132,11 @@ def calculate_raw_deltas(filepath: str, b_all_mips: bool, is_normal_map: bool = 
         deltas: list[list[float]] = []
         for x in range(loops):
             smaller_mip = current_mip
-            smaller_mip = cv2.resize(smaller_mip, (0, 0), fx=0.5, fy=0.5)
+            smaller_mip = resize(smaller_mip, 0.5)
             if is_normal_map:
                 smaller_mip = normalize_RGB(smaller_mip)
             next_mip = smaller_mip
-            smaller_mip = cv2.resize(smaller_mip, (0, 0), fx=2.0, fy=2.0)
+            smaller_mip = resize(smaller_mip, 2.0)
             num_pixels = current_mip.__len__() * current_mip[0].__len__()
             if is_normal_map:
                 dot_products = np.sum(current_mip * smaller_mip, axis=-1)
