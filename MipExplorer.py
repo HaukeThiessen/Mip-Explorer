@@ -415,6 +415,7 @@ class MainWindow(QMainWindow):
         else:
             self.results_viewer.update_plot([])
             self.texture_viewer.lbl_preview.setPixmap(QPixmap(""))
+            self.texture_viewer.set_controls_state(False)
 
     # The following three methods set up dragging and dropping for the app
     def dragEnterEvent(self, e):

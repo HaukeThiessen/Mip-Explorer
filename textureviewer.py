@@ -99,14 +99,16 @@ class TextureViewer(QWidget):
         lt_main = QHBoxLayout(self)
         lt_main.setContentsMargins(0,0,0,0)
         lt_size_controls = QVBoxLayout()
+        lt_size_buttons = QHBoxLayout()
 
         # Organize widgets in layouts
         lt_main.addLayout(lt_size_controls)
         lt_main.addWidget(self.scrl_preview)
         lt_size_controls.addWidget(self.sldr_size,alignment = Qt.AlignmentFlag.AlignHCenter)
-        lt_size_controls.addWidget(self.btn_original_size)
-        lt_size_controls.addWidget(self.btn_fill_size)
-        lt_size_controls.addWidget(self.btn_fit_size)
+        lt_size_buttons.addWidget(self.btn_original_size)
+        lt_size_buttons.addWidget(self.btn_fill_size)
+        lt_size_buttons.addWidget(self.btn_fit_size)
+        lt_size_controls.addLayout(lt_size_buttons)
         lt_size_controls.addWidget(self.cmb_mip)
 
         self.mip0_pixmap = QPixmap("")
@@ -146,6 +148,7 @@ class TextureViewer(QWidget):
         self.cmb_mip.setCurrentIndex(min(self.displayed_mip, num_mips))
         self.cmb_mip.blockSignals(False)
         self.display_correct_mip()
+        self.set_controls_state(True)
 
 
     def handle_size_changed(self):
@@ -205,3 +208,11 @@ class TextureViewer(QWidget):
             aspect_ratio: float = pixmap.size().width() / pixmap.size().height()
             self.lbl_preview.setFixedSize(self.texture_size, self.texture_size / aspect_ratio)
             return
+
+    def set_controls_state(self, isEnabled: bool):
+        self.btn_original_size.setEnabled(isEnabled)
+        self.btn_original_size.setWindowOpacity(0.2)
+        self.btn_fill_size.setEnabled(isEnabled)
+        self.btn_fit_size.setEnabled(isEnabled)
+        self.sldr_size.setEnabled(isEnabled)
+        self.cmb_mip.setEnabled(isEnabled)
