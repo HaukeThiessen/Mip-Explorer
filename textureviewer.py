@@ -29,7 +29,7 @@ import math
 
 from PySide6.QtCore import *
 from PySide6.QtWidgets import *
-from PySide6.QtGui import QPixmap, QImage
+from PySide6.QtGui import QPixmap, QImage, QWheelEvent
 
 
 class simple_scroller(QScrollArea):
@@ -40,7 +40,7 @@ class simple_scroller(QScrollArea):
         QScrollArea.__init__(self)
 
     def wheelEvent(self, ev):
-        if ev.type() == QEvent.Wheel:
+        if ev.type() == QEvent.Type.Wheel:
             ev.ignore()
 
 
@@ -48,7 +48,7 @@ class TextureViewer(QWidget):
     def __init__(self, *args, **kwargs):
         fg_color: str = args[0]
         QWidget.__init__(self)
-        self.texture_size = 300
+        self.texture_size: int = 300
         self.original_texture_size = [0,0]
         self.texture_filepath: str = ""
         self.texture_type: core.TextureType  = core.TextureType.COLOR
@@ -71,7 +71,7 @@ class TextureViewer(QWidget):
         self.sldr_size.setMaximum(1000)
         self.sldr_size.setPageStep(90)
         self.sldr_size.setValue(300)
-        self.sldr_size.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.sldr_size.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.sldr_size.valueChanged.connect(self.handle_size_changed)
 
         self.btn_original_size = QPushButton("🟰")
@@ -196,9 +196,9 @@ class TextureViewer(QWidget):
           self.sldr_size.setValue(max_dimension)
           self.handle_size_changed()
 
-    def wheelEvent(self, event: QEvent):
-        numDegrees: QPoint = event.angleDelta() / 8
-        self.sldr_size.setValue(self.sldr_size.value() + (numDegrees.y() * 2))
+    def wheelEvent(self, event: QWheelEvent):
+        numDegrees: int = int(event.angleDelta().y() / 8)
+        self.sldr_size.setValue(self.sldr_size.value() + (numDegrees * 2))
         self.handle_size_changed()
         event.accept()
 
@@ -206,8 +206,7 @@ class TextureViewer(QWidget):
         if self.lbl_preview.pixmap():
             pixmap = self.lbl_preview.pixmap()
             aspect_ratio: float = pixmap.size().width() / pixmap.size().height()
-            self.lbl_preview.setFixedSize(self.texture_size, self.texture_size / aspect_ratio)
-            return
+            self.lbl_preview.setFixedSize(self.texture_size, int(self.texture_size / aspect_ratio))
 
     def set_controls_state(self, isEnabled: bool):
         self.btn_original_size.setEnabled(isEnabled)

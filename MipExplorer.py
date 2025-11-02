@@ -47,9 +47,8 @@ from textureviewer import TextureViewer
 
 if platform.system() == "Darwin":
     # supposed to work on Mac OS, but didn't test this
-    from Foundation import NSURL
-else:
-    import winreg
+    from Foundation import NSURL # type: ignore
+
 
 CACHESIZE = 100
 
@@ -87,17 +86,17 @@ def ensure_cache_version(cachepath: str):
         pass
 
 
-def get_results_category(texture_type: core.TextureType):
+def get_results_category(texture_type: core.TextureType) -> str:
     return "Results_Normal" if texture_type == core.TextureType.NORMAL else "Results"
 
 
-def try_getting_cached_results(filepath: str, cachepath: str) -> list[list[float]]:
-    category: str = get_results_category
+def try_getting_cached_results(filepath: str, cachepath: str, texture_type: core.TextureType) -> list[list[float]] | None:
     if not ALLOW_CACHING:
         return
     try:
         with open(cachepath, "r", encoding="utf-8") as file:
             data = json.load(file)
+        category: str = get_results_category(texture_type)
         if category in data:
             if filepath in data[category]:
                 last_time_modified = os.path.getmtime(filepath)
@@ -140,10 +139,10 @@ def save_cached_results(y_axis_values: list[list[float]], filepath: str, cachepa
         open(cachepath, 'a').close()
 
 
-def get_plot_values(filepath: str, texture_type: core.TextureType, force_update: bool = False) -> list[list[float]]:
+def get_plot_values(filepath: str, texture_type: core.TextureType, force_update: bool = False) -> list[list[float]] | list[float]:
     raw_deltas = []
     if not force_update:
-        raw_deltas = try_getting_cached_results(filepath, cachepath)
+        raw_deltas = try_getting_cached_results(filepath, cachepath, texture_type)
     if not raw_deltas:
         raw_deltas = core.calculate_raw_deltas(filepath, True, texture_type == core.TextureType.NORMAL)
         save_cached_results(raw_deltas, filepath, cachepath, texture_type)
@@ -192,13 +191,13 @@ class InfoPanel(QWidget):
 class TextureTypeSettingsDialog(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Automatic texture type Settings")
+        self.setWindowTitle("Automatic Texture Type Settings")
 
         my_icon = QIcon()
         my_icon.addFile(settings_icon)
         self.setWindowIcon(my_icon)
 
-        QBtn = QDialogButtonBox.Ok | QDialogButtonBox.Cancel | QDialogButtonBox.RestoreDefaults
+        QBtn = QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.RestoreDefaults
         self.button_box = QDialogButtonBox(QBtn)
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
@@ -282,8 +281,6 @@ class TextureTypeSettingsDialog(QDialog):
 
 
 class MainWindow(QMainWindow):
-    file_browser: FileBrowser = []
-
     def __init__(self):
         super().__init__()
         my_icon = QIcon()
@@ -341,43 +338,43 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(widget)
 
     def eventFilter(self, widget, event):
-        if event.type() == QEvent.KeyPress:
+        if event.type() == QEvent.Type.KeyPress:
             key = event.key()
-            if key == Qt.Key_R:
+            if key == Qt.Key.Key_R:
                 self.force_update()
                 return True
             # Texture Viewer
-            if key == Qt.Key_1:
+            if key == Qt.Key.Key_1:
                 self.texture_viewer.set_original_size()
-            if key == Qt.Key_0:
+            if key == Qt.Key.Key_0:
                 self.texture_viewer.set_fit_size()
             # Results Viewer
-            if key == Qt.Key_C:
+            if key == Qt.Key.Key_C:
                 self.results_viewer.cmb_texture_type.setCurrentIndex(0)
                 return True
-            if key == Qt.Key_D:
+            if key == Qt.Key.Key_D:
                 self.results_viewer.cmb_texture_type.setCurrentIndex(1)
                 return True
-            if key == Qt.Key_A:
+            if key == Qt.Key.Key_A:
                 self.results_viewer.cmb_texture_type.setCurrentIndex(2)
                 return True
-            if key == Qt.Key_N:
+            if key == Qt.Key.Key_N:
                 self.results_viewer.cmb_texture_type.setCurrentIndex(3)
                 return True
-            if key == Qt.Key_S:
+            if key == Qt.Key.Key_S:
                 self.open_texture_type_settings()
             # File Browser
-            if key == Qt.Key_Return or key == Qt.Key_Right:
+            if key == Qt.Key.Key_Return or key == Qt.Key.Key_Right:
                 self.file_browser.open_current_directory_external()
                 return True
-            if key == Qt.Key_Left:
+            if key == Qt.Key.Key_Left:
                 self.file_browser.open_parent_directory()
                 return True
-            if key == Qt.Key_L:
+            if key == Qt.Key.Key_L:
                 self.file_browser.cmb_icon_size.setCurrentIndex(0)
-            if key == Qt.Key_M:
+            if key == Qt.Key.Key_M:
                 self.file_browser.cmb_icon_size.setCurrentIndex(1)
-            if key == Qt.Key_B:
+            if key == Qt.Key.Key_B:
                 self.file_browser.cmb_icon_size.setCurrentIndex(2)
         return QWidget.eventFilter(self, widget, event)
 
@@ -402,15 +399,19 @@ class MainWindow(QMainWindow):
     def handle_update(self, force_update: bool = False):
         texture_type: core.TextureType = core.TextureType(self.results_viewer.cmb_texture_type.currentIndex())
         Settings.current_texture_type = texture_type
-        if not os.path.isfile(self.file_browser.selected_file):
+        file_path: str = self.file_browser.selected_file
+        if not os.path.isfile(file_path):
+            file_path = self.texture_viewer.texture_filepath
+        if not os.path.isfile(file_path):
             return
-        pixmap = QPixmap(self.file_browser.selected_file)
-        self.texture_info_panel.update_info(self.file_browser.selected_file, pixmap)
+
+        pixmap = QPixmap(file_path)
+        self.texture_info_panel.update_info(file_path, pixmap)
         if core.is_mip_mappable(pixmap.size().width(), pixmap.size().height()):
-            self.texture_viewer.texture_filepath = self.file_browser.selected_file
+            self.texture_viewer.texture_filepath = file_path
             self.texture_viewer.texture_type = texture_type
             self.texture_viewer.update_pixmap(pixmap)
-            y_axis_values = get_plot_values(self.file_browser.selected_file, texture_type, force_update)
+            y_axis_values = get_plot_values(file_path, texture_type, force_update)
             self.results_viewer.update_plot(y_axis_values)
         else:
             self.results_viewer.update_plot([])
@@ -432,7 +433,7 @@ class MainWindow(QMainWindow):
 
     def dropEvent(self, e):
         if e.mimeData().hasUrls:
-            e.setDropAction(Qt.CopyAction)
+            e.setDropAction(Qt.DropAction.CopyAction)
             e.accept()
             # Workaround for OSx dragging and dropping
             for url in e.mimeData().urls():

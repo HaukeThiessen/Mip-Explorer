@@ -75,13 +75,13 @@ class Settings:
             with open(Settings.settings_path, "w", encoding="utf-8") as f:
                 json.dump(
                     {
-                        "color_affixes":          Settings.color_affixes,
-                        "data_affixes":           Settings.data_affixes,
-                        "channels_affixes":       Settings.channels_affixes,
-                        "normal_affixes":         Settings.normal_affixes,
-                        "use_automatic_texture_type":Settings.use_automatic_texture_type,
-                        "current_directory":      Settings.current_directory,
-                        "current_texture_type":      Settings.current_texture_type.value
+                        "color_affixes":              Settings.color_affixes,
+                        "data_affixes":               Settings.data_affixes,
+                        "channels_affixes":           Settings.channels_affixes,
+                        "normal_affixes":             Settings.normal_affixes,
+                        "use_automatic_texture_type": Settings.use_automatic_texture_type,
+                        "current_directory":          Settings.current_directory,
+                        "current_texture_type":       Settings.current_texture_type.value
                     },
                     f,
                     ensure_ascii = False,

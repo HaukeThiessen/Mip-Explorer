@@ -38,7 +38,7 @@ from PySide6.QtWidgets import *
 from PySide6.QtGui import QPixmap, QIcon
 
 
-OS_FILEBROWSER_PATH: str = os.path.join(os.getenv("WINDIR"), "explorer.exe")
+OS_FILEBROWSER_PATH: str = os.path.join(str(os.getenv("WINDIR")), "explorer.exe")
 
 class IconProvider(QFileIconProvider):
     """
@@ -93,10 +93,10 @@ class IconProvider(QFileIconProvider):
         else:
             return  QSize(int(self.MAX_THUMBNAIL_SIZE * aspect_ratio), self.MAX_THUMBNAIL_SIZE)
 
-    def icon(self, type: QFileIconProvider.IconType) -> QIcon:
+    def icon(self, file_info: QFileInfo) -> QIcon:
         filename: str = ""
         try:
-            filename: str = type.filePath()
+            filename: str = file_info.filePath()
         except:
             pass
 
@@ -128,7 +128,7 @@ class IconProvider(QFileIconProvider):
             self.cached_icons.update({filename: icon})
             return icon
         else:
-            return super().icon(type)
+            return super().icon(file_info)
 
 
 class FileBrowser(QWidget):
@@ -186,7 +186,7 @@ class FileBrowser(QWidget):
 
         self.dir_model = QFileSystemModel()
         self.dir_model.setRootPath(path)
-        self.dir_model.setFilter(QDir.NoDotAndDotDot | QDir.AllDirs)
+        self.dir_model.setFilter(QDir.Filter.NoDotAndDotDot | QDir.Filter.AllDirs)
 
         self.icon_provider = IconProvider()
         self.file_model = QFileSystemModel()
@@ -237,7 +237,7 @@ class FileBrowser(QWidget):
 
     def init_file_model(self):
         self.file_model.setIconProvider(self.icon_provider)
-        self.file_model.setFilter(QDir.NoDotAndDotDot | QDir.Files | QDir.AllDirs)
+        self.file_model.setFilter(QDir.Filter.NoDotAndDotDot | QDir.Filter.Files | QDir.Filter.AllDirs)
         self.file_model.setNameFilterDisables(False)
         self.handle_search_term_changed()
         self.list_view.setModel(self.file_model)
@@ -251,16 +251,16 @@ class FileBrowser(QWidget):
         self.btn_batch.setText("---")
         path = self.file_model.rootPath()
         files = list(p.resolve() for p in Path(path).glob("**/*") if p.suffix in core.SUPPORTEDFORMATS)
-        results_table: list[list[float | str, str, str]] = []
+        results_table: list = []
         progress = QProgressDialog("", "Cancel", 0, len(files), self)
         progress.setWindowTitle("Processing Mips in \n" + path + "...")
-        progress.setWindowModality(Qt.WindowModal)
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
         for i in range(0, len(files)):
             progress.setValue(i)
             pixmap = QPixmap(Path(files[i]))
             if core.is_mip_mappable(pixmap.size().width(), pixmap.size().height()):
                 raw_deltas: list[list[float]] = core.calculate_raw_deltas(str(files[i]), False)
-                texture_type = Settings.get_automatic_texture_type(files[i])
+                texture_type = Settings.get_automatic_texture_type(str(files[i]))
                 if texture_type == core.TextureType.MAX or texture_type == core.TextureType.CHANNELS:
                     texture_type = core.TextureType.DATA
                 values: list[float] | list[list[float]] = core.interpret_deltas(raw_deltas, texture_type)
@@ -292,7 +292,8 @@ class FileBrowser(QWidget):
         self.btn_batch.setEnabled(True)
 
     def open_current_directory_external(self):
-        selected_file_path = self.list_view.model().filePath(self.list_view.selectedIndexes()[0])
+        model: QFileSystemModel = QFileSystemModel(self.list_view.model())
+        selected_file_path = model.filePath(self.list_view.selectedIndexes()[0])
         if os.path.isfile(selected_file_path):
             selected_file_path = os.path.normpath(selected_file_path)
             subprocess.run([OS_FILEBROWSER_PATH, "/select,", selected_file_path])
@@ -313,7 +314,8 @@ class FileBrowser(QWidget):
         self.jump_to_path(self.le_address.text())
 
     def handle_file_selection_changed(self):
-        self.selected_file = self.list_view.model().filePath(self.list_view.selectedIndexes()[0])
+        model: QFileSystemModel = QFileSystemModel(self.list_view.model())
+        self.selected_file = model.filePath(self.list_view.selectedIndexes()[0])
         self.le_address.setText(self.selected_file)
         self.file_selection_changed.emit()
 

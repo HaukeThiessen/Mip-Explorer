@@ -24,7 +24,6 @@
 #  ---------------------------------------------------------------------------
 
 
-import core
 import ui_utilities
 
 from PySide6.QtCore import *
@@ -32,8 +31,8 @@ from PySide6.QtWidgets import *
 from settings import Settings
 
 import matplotlib
-matplotlib.use("Qt5Agg")
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+matplotlib.use("QtAgg")
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 
@@ -91,7 +90,7 @@ class ResultsViewer(QSplitter):
         self.btn_texture_type_settings.setToolTip(self.tr("Change the affixes to search for when setting the texture type.\n"
                                                           "Shortcut: S"))
         self.btn_texture_type_settings.setMinimumWidth(32)
-        self.btn_texture_type_settings.setSizePolicy(QSizePolicy.Minimum,QSizePolicy.Minimum)
+        self.btn_texture_type_settings.setSizePolicy(QSizePolicy.Policy.Minimum,QSizePolicy.Policy.Minimum)
         self.btn_texture_type_settings.clicked.connect(self.settings_window_requested.emit)
 
         self.numbers_list = QLabel("             ")
@@ -116,7 +115,7 @@ class ResultsViewer(QSplitter):
 
         self.canvas = FigureCanvasQTAgg(self.fig)
         self.canvas.draw()
-        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.addWidget(self.canvas)
         self.addWidget(results_right_column)
         self.setSizes([1000, 150])
@@ -125,14 +124,14 @@ class ResultsViewer(QSplitter):
     def handle_update(self):
         self.canvas.draw()
 
-    def update_plot(self, y_axis_values: list[list[float]], texture_type = core.TextureType):
+    def update_plot(self, y_axis_values: list[list[float]] | list[float]):
         if y_axis_values.__len__() == 0:
             self.plt_mips.set_visible(False)
             return
 
         self.plt_mips.clear()
         if type(y_axis_values[0]) == list:
-            new_grid = [[x[i] for x in y_axis_values] for i in range(len(y_axis_values[0]))]
+            new_grid = [[x[i] for x in y_axis_values] for i in range(len(y_axis_values[0]))] # type: ignore
             self.plt_mips.plot(new_grid[0], "red")
             self.plt_mips.plot(new_grid[1], "green")
             self.plt_mips.plot(new_grid[2], "blue")
@@ -145,21 +144,21 @@ class ResultsViewer(QSplitter):
         self.plt_mips.xaxis.set_major_locator(MaxNLocator(integer = True))
         self.plt_mips.set_visible(True)
         self.fig.set_visible(True)
-        self.update_list(y_axis_values, texture_type)
+        self.update_list(y_axis_values)
         self.handle_update()
 
-    def update_list(self, y_axis_values: list[list[float]], texture_type: core.TextureType):
+    def update_list(self, y_axis_values: list[list[float]] | list[float]):
       if y_axis_values.__len__() == 0:
           self.numbers_list.setText("   -   ")
           return
       caption = "Information/Pixel:\n"
       if type(y_axis_values[0]) == list:
           for idx, value in enumerate(y_axis_values):
-              caption += "  Mip " + "{:<5}".format(str(idx) + ", R: ") + "{:.3f}".format(value[0]) + "  \n"
-              caption += "  Mip " + "{:<5}".format(str(idx) + ", G: ") + "{:.3f}".format(value[1]) + "  \n"
-              caption += "  Mip " + "{:<5}".format(str(idx) + ", B: ") + "{:.3f}".format(value[2]) + "  \n"
-              if(value.__len__() == 4):
-                  caption += "  Mip " + "{:<5}".format(str(idx) + ", A: ") + "{:.3f}".format(value[3]) + "  \n\n"
+              caption += "  Mip " + "{:<5}".format(str(idx) + ", R: ") + "{:.3f}".format(value[0]) + "  \n" # type: ignore
+              caption += "  Mip " + "{:<5}".format(str(idx) + ", G: ") + "{:.3f}".format(value[1]) + "  \n" # type: ignore
+              caption += "  Mip " + "{:<5}".format(str(idx) + ", B: ") + "{:.3f}".format(value[2]) + "  \n" # type: ignore
+              if(value.__len__() == 4): # type: ignore
+                  caption += "  Mip " + "{:<5}".format(str(idx) + ", A: ") + "{:.3f}".format(value[3]) + "  \n\n" # type: ignore
               else:
                   caption +="\n"
       else:

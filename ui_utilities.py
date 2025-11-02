@@ -27,10 +27,7 @@
 import platform
 import subprocess
 
-if platform.system() == "Darwin":
-    # supposed to work on Mac OS, but didn't test this
-    from Foundation import NSURL
-else:
+if platform.system() != "Darwin":
     import winreg
 
 
@@ -38,7 +35,7 @@ def is_system_dark() -> bool:
     if platform.system() == "Darwin":
         try:
             cmd: str = "defaults read -g AppleInterfaceStyle"
-            p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = True)
             return bool(p.communicate()[0])
         except Exception:
             return False

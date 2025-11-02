@@ -70,11 +70,11 @@ def normalize_RGB(vec):
     vec[:,:,2] = vec[:,:,2] / length
     return vec
 
-def get_image_from_file(filepath: str):
+def get_image_from_file(filepath: str) -> np.ndarray:
+    image: np.ndarray = np.empty(0)
     try:
         if filepath.endswith(".tga"):
             cap = cv2.VideoCapture(filepath, cv2.CAP_FFMPEG)
-            image = np.empty(0)
             image = cap.read(image)[1]
         else:
             image = cv2.imread(filepath, cv2.IMREAD_UNCHANGED)
@@ -83,6 +83,7 @@ def get_image_from_file(filepath: str):
     except:
         print("Failed to open " + filepath)
         pass
+    return image
 
 
 def float_to_uint8(texture):
@@ -90,7 +91,7 @@ def float_to_uint8(texture):
     return texture.astype(np.uint8)
 
 
-def transform_normal_map_to_vectors(image, normalize: bool = True):
+def transform_normal_map_to_vectors(image: np.ndarray, normalize: bool = True) -> np.ndarray:
     """
     Since normal maps can only store values in a 0-1 range instead of -1-1, an offset and 2x scale is needed to get a proper normal vector
     """
@@ -101,7 +102,7 @@ def transform_normal_map_to_vectors(image, normalize: bool = True):
         image = normalize_RGB(image)
     return image
 
-def transform_vectors_to_normal_map(image):
+def transform_vectors_to_normal_map(image: np.ndarray) -> np.ndarray:
     """
     Since normal maps can only store values in a 0-1 range instead of -1-1, an offset and 2x scale is needed to get a proper normal vector
     """
@@ -167,7 +168,7 @@ def interpret_deltas(raw_deltas: list[list[float]], texture_type: TextureType) -
     has_alpha_channel = raw_deltas[0].__len__() == 4
 
     if texture_type == TextureType.NORMAL:
-        angle_deltas: list[list[float]] = []
+        angle_deltas: list[float] = []
         for delta in raw_deltas:
             angle_deltas.append(delta[2])
         return angle_deltas
@@ -177,14 +178,14 @@ def interpret_deltas(raw_deltas: list[list[float]], texture_type: TextureType) -
     else:
         channel_weights = (0.22, 0.72, 0.07) if texture_type == TextureType.COLOR else (0.333, 0.333, 0.333)
 
-    weighted_deltas: list[list[float]] = []
+    weighted_deltas: list[float] = []
     for delta in raw_deltas:
         if has_alpha_channel:
             weighted_deltas.append(
                 delta[0] * channel_weights[0] +
                 delta[1] * channel_weights[1] +
                 delta[2] * channel_weights[2] +
-                delta[3] * channel_weights[3]
+                delta[3] * channel_weights[3]  # type: ignore #TODO: exchange with for loop for cleaner structure
             )
         else:
             weighted_deltas.append(
