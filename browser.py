@@ -258,6 +258,8 @@ class FileBrowser(QWidget):
             for format in core.SUPPORTEDFORMATS:
                 supported_formats.append(format[1:])
         files = list(p.resolve() for p in Path(path).glob("**/*") if p.suffix in supported_formats)
+        if files.__len__() == 0:
+            print ("No mip-mappable texture files found in the current directory.")
         results_table: list = []
         progress = QProgressDialog("", "Cancel", 0, len(files), self)
         progress.setWindowTitle("Processing Mips in \n" + path + "...")
