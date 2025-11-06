@@ -27,7 +27,7 @@
 import platform
 import subprocess
 
-if platform.system() != "Darwin":
+if platform.system() == "Windows":
     import winreg
 
 
@@ -40,11 +40,28 @@ def is_system_dark() -> bool:
         except Exception:
             return False
     else:
-        try:
-            key = winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"
-            )
-            value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
-            return value == 0
-        except Exception as e:
-            return False
+        if platform.system() == "Windows":
+            try:
+                key = winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER, "Software/Microsoft/Windows/CurrentVersion/Themes/Personalize"
+                )
+                value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+                return value == 0
+            except Exception as e:
+                return False
+        else:
+            return detectDarkModeGnome()
+
+
+def detectDarkModeGnome():
+    '''Detects dark mode in GNOME'''
+    getArgs = ['gsettings', 'get', 'org.gnome.desktop.interface', 'gtk-theme']
+
+    currentTheme = subprocess.run(
+        getArgs, capture_output=True
+    ).stdout.decode("utf-8").strip().strip("'")
+
+    darkIndicator = '-dark'
+    if currentTheme.endswith(darkIndicator):
+        return True
+    return False

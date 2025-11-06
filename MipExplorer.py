@@ -44,7 +44,6 @@ from resultsviewer import ResultsViewer
 from settings import Settings
 from textureviewer import TextureViewer
 
-
 if platform.system() == "Darwin":
     # supposed to work on Mac OS, but didn't test this
     from Foundation import NSURL # type: ignore
@@ -191,11 +190,7 @@ class InfoPanel(QWidget):
 class TextureTypeSettingsDialog(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Automatic Texture Type Settings")
-
-        my_icon = QIcon()
-        my_icon.addFile(settings_icon)
-        self.setWindowIcon(my_icon)
+        self.setWindowTitle("⚙️ Automatic Texture Type Settings")
 
         QBtn = QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.RestoreDefaults
         self.button_box = QDialogButtonBox(QBtn)
@@ -460,13 +455,9 @@ if __name__ == "__main__":
     bg_color = DARK_COLOR if use_dark_mode else LIGHT_COLOR
     fg_color = LIGHT_COLOR if use_dark_mode else DARK_COLOR
     dir_path = os.path.dirname(os.path.realpath(__file__))
+    resources_folder: str = "/Resources/"
     app_icon = (
-        dir_path + "\\Resources\\AppIcon_Light.png" if use_dark_mode else dir_path + "\\Resources\\AppIcon_Dark.png"
-    )
-    settings_icon = (
-        dir_path + "\\Resources\\SettingsIcon_Light.png"
-        if use_dark_mode
-        else dir_path + "\\Resources\\SettingsIcon_Dark.png"
+        dir_path +  resources_folder + "AppIcon_Light.png" if use_dark_mode else dir_path + resources_folder + "AppIcon_Dark.png"
     )
 
     Settings.load_settings()
@@ -474,9 +465,13 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
+  
     # Taskbar Icon
     app_ID: str = 'MipExplorer'
-    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_ID)
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_ID)
+    except:
+        pass
     app.setWindowIcon(QIcon(app_icon))
 
     window = MainWindow()

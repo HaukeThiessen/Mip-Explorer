@@ -28,6 +28,7 @@ import core
 import csv
 import datetime
 import os
+import platform
 import subprocess
 
 from settings import Settings
@@ -37,8 +38,6 @@ from PySide6.QtCore import *
 from PySide6.QtWidgets import *
 from PySide6.QtGui import QPixmap, QIcon
 
-
-OS_FILEBROWSER_PATH: str = os.path.join(str(os.getenv("WINDIR")), "explorer.exe")
 
 class IconProvider(QFileIconProvider):
     """
@@ -51,39 +50,41 @@ class IconProvider(QFileIconProvider):
         self.ACCEPTED_FORMATS: tuple[str, ...] = (".jpg",".tiff",".png", ".webp", ".tga")
         self.cached_icons: dict[str, QIcon] = {}
         self.use_thumbnails: bool = False
+        resources_folder: str
+        resources_folder = "/Resources/"
 
         # Create folder icon
         folder_picture = QPixmap(QSize(32, 32))
-        folder_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\FolderIcon.png")
+        folder_picture.load(os.path.dirname(os.path.realpath(__file__)) + resources_folder + "FolderIcon.png")
         self.folder_icon = QIcon(folder_picture)
 
         # Create Icons
         csv_picture = QPixmap(QSize(32, 32))
-        csv_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\csvIcon.png")
+        csv_picture.load(os.path.dirname(os.path.realpath(__file__)) + resources_folder + "csvIcon.png")
         self.csv_icon = QIcon(csv_picture)
 
         jpg_picture = QPixmap(QSize(32, 32))
-        jpg_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\jpgIcon.png")
+        jpg_picture.load(os.path.dirname(os.path.realpath(__file__)) + resources_folder + "jpgIcon.png")
         self.jpg_icon = QIcon(jpg_picture)
 
         tiff_picture = QPixmap(QSize(32, 32))
-        tiff_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\tiffIcon.png")
+        tiff_picture.load(os.path.dirname(os.path.realpath(__file__)) + resources_folder + "tiffIcon.png")
         self.tiff_icon = QIcon(tiff_picture)
 
         png_picture = QPixmap(QSize(32, 32))
-        png_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\pngIcon.png")
+        png_picture.load(os.path.dirname(os.path.realpath(__file__)) + resources_folder + "pngIcon.png")
         self.png_icon = QIcon(png_picture)
 
         tga_picture = QPixmap(QSize(32, 32))
-        tga_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\tgaIcon.png")
+        tga_picture.load(os.path.dirname(os.path.realpath(__file__)) + resources_folder + "tgaIcon.png")
         self.tga_icon = QIcon(tga_picture)
 
         bmp_picture = QPixmap(QSize(32, 32))
-        bmp_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\bmpIcon.png")
+        bmp_picture.load(os.path.dirname(os.path.realpath(__file__)) + resources_folder + "bmpIcon.png")
         self.bmp_icon = QIcon(bmp_picture)
 
         webp_picture = QPixmap(QSize(32, 32))
-        webp_picture.load(os.path.dirname(os.path.realpath(__file__)) + "\\Resources\\webpIcon.png")
+        webp_picture.load(os.path.dirname(os.path.realpath(__file__)) + resources_folder + "webpIcon.png")
         self.webp_icon = QIcon(webp_picture)
 
     def calculate_thumbnail_size(self, original_size: QSize) -> QSize:
@@ -250,7 +251,13 @@ class FileBrowser(QWidget):
         self.btn_batch.setEnabled(False)
         self.btn_batch.setText("---")
         path = self.file_model.rootPath()
-        files = list(p.resolve() for p in Path(path).glob("**/*") if p.suffix in core.SUPPORTEDFORMATS)
+        supported_formats = []
+        if platform.system() == "Windows":
+            supported_formats = core.SUPPORTEDFORMATS
+        else:
+            for format in core.SUPPORTEDFORMATS:
+                supported_formats.append(format[1:])
+        files = list(p.resolve() for p in Path(path).glob("**/*") if p.suffix in supported_formats)
         results_table: list = []
         progress = QProgressDialog("", "Cancel", 0, len(files), self)
         progress.setWindowTitle("Processing Mips in \n" + path + "...")
@@ -282,7 +289,8 @@ class FileBrowser(QWidget):
         results_table_sorted.insert(0, ("Mip0 Information", "Filepath", "Dimensions", "has Alpha", "Mode"))
         time: str = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         try:
-            with open(path + "\\MipStats_ " + time + ".csv", "w", newline="") as csvfile:
+            base_name: str = "/MipStats_"
+            with open(path + base_name + time + ".csv", "w", newline="") as csvfile:
                 writer = csv.writer(csvfile, quoting=csv.QUOTE_ALL)
                 writer.writerows(results_table_sorted)
         except:
@@ -296,7 +304,12 @@ class FileBrowser(QWidget):
         selected_file_path = model.filePath(self.list_view.selectedIndexes()[0])
         if os.path.isfile(selected_file_path):
             selected_file_path = os.path.normpath(selected_file_path)
-            subprocess.run([OS_FILEBROWSER_PATH, "/select,", selected_file_path])
+            if platform.system() == "Windows":
+                OS_FILEBROWSER_PATH: str = os.path.join(str(os.getenv("WINDIR")), "explorer.exe")
+                subprocess.run([OS_FILEBROWSER_PATH, "/select,", selected_file_path])
+            else:
+                subprocess.Popen(["xdg-open", selected_file_path])
+            
         else:
             self.jump_to_path(selected_file_path)
 

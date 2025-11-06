@@ -39,7 +39,7 @@ class Settings:
     current_texture_type: core.TextureType = core.TextureType.COLOR
     current_directory = ""
 
-    settings_path: str = os.path.dirname(__file__) + "\\Saved\\Settings.json"
+    settings_path: str = os.path.dirname(__file__) + "/Saved/Settings.json"
 
     @staticmethod
     def load_settings():
