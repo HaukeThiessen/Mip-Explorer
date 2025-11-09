@@ -36,7 +36,7 @@ The Mip Explorer offers 4 modes for different types of textures:
 
 🚦  For a more detailed analysis, you can also display the results per channel.
 
-⬆️  The normal map mode normalizes each mip and uses the angles between the normal vectors to calculat the differences
+⬆️  The normal map mode normalizes each mip and uses the angles between the normal vectors to calculate the differences
 The modes can be selected manually or automatically based on file name suffixes.
 
 # FAQ:
@@ -44,14 +44,14 @@ The modes can be selected manually or automatically based on file name suffixes.
 It depends. The option to show the information density per mip map is not intended as a tool to be used regularly in a real production. It's meant to be a demonstration tool and illustrates some characteristics of mip maps that not all people are usually aware of. The option to calculate Mip 0 information densities exists to be used during the optimization phase of an actual production. But even then, it shouldn't be used as the final source of truth. Human perception tends to differ from what the numeric differences of the mip maps imply, and the Mip Explorer doesn't know anything about how the textures are used in your game. So if in doubt, trust your own judgement.
 
 ## What do I need to run the Mip Explorer?
-Mip Explorer has been developed and tested on Windows 11. Some features (dark/light UI mode, drag-and-drop of files from outside) depend on Windows. Here and there, I've also implemented alternatives for MacOS, but I haven't tested them myself, and further work would be needed to make it run. If you do test it on a Mac, please let me know your results. Same if you're a Linux user.
+Mip Explorer works both on Windows and and Linux. It got developed and tested on Windows 11 and Ubuntu 24.04.3 LTS, but should also work on other versions/distros. While it probably won't work on Mac OS out of the box, feel free to try it out and adjust the code as necessary, it should work with just minimal changes.
 
 The tool is completely written in Python **3.13.2** and has some dependencies that are not part of the standard Python library. Please see the included **requirements.txt** for details.
 
-There is also a batch file, called **InstallRequiredLibs.bat** in the root directory, which you can run to install the latest versions of the required libraries.
+There is also a batch file, called **InstallRequiredLibs.bat** in the root directory, which you can run to install the latest versions of the required libraries (if you're using Windows).
 
 # Which file formats are supported?
-The supported formats are: bmp, dib, jp(e)g, jpe, jp2, png, webp, pbm, pgm, ppm, pxm, pnm, sr, ras, tif(f), tga and pic. 
+The supported formats are: bmp, dib, jp(e)g, jpe, jp2, png, webp, pbm, pgm, ppm, pxm, pnm, sr, ras, tif(f), tga and pic.
 
 Please note that most of these formats come in a range of flavors and with different optional features, so there's a chance that a file isn't accpepted even if it's a nominally supported file type. I didn't test any file formats myself other than bmp, tiff, png, tga, webp and jpg.
 
