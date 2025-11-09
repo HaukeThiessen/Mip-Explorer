@@ -57,7 +57,6 @@ class TextureViewer(QWidget):
         # Widgets
         self.lbl_preview = QLabel()
         self.lbl_preview.setFrameStyle(QFrame.Shape.Box)
-        self.lbl_preview.setStyleSheet('background-color: ' + fg_color)
         self.lbl_preview.setScaledContents(True)
         self.lbl_preview.setFixedSize(self.texture_size, self.texture_size)
 

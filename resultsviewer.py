@@ -94,6 +94,10 @@ class ResultsViewer(QSplitter):
         self.btn_texture_type_settings.clicked.connect(self.settings_window_requested.emit)
 
         self.numbers_list = QLabel("             ")
+        self.numbers_list.setToolTip("The average difference of each pixel to the matching pixel in the next mip.\n"
+                                     "When calculating this number, the value range is scaled to 1-1000 instead of 0-1, purely to help readability.\n"
+                                     "In a texture using 256 values per channel, the smallest possible difference between two non-identical pixels is 4.\n"
+                                     "For non-normal textures, the unit for these values could be called kilo luminance")
         self.scrl_numbers_list = QScrollArea()
         self.scrl_numbers_list.setWidget(self.numbers_list)
         self.scrl_numbers_list.setWidgetResizable(True)
@@ -154,14 +158,14 @@ class ResultsViewer(QSplitter):
       caption = "Information/Pixel:\n"
       if type(y_axis_values[0]) == list:
           for idx, value in enumerate(y_axis_values):
-              caption += "  Mip " + "{:<5}".format(str(idx) + ", R: ") + "{:.3f}".format(value[0]) + "  \n" # type: ignore
-              caption += "  Mip " + "{:<5}".format(str(idx) + ", G: ") + "{:.3f}".format(value[1]) + "  \n" # type: ignore
-              caption += "  Mip " + "{:<5}".format(str(idx) + ", B: ") + "{:.3f}".format(value[2]) + "  \n" # type: ignore
+              caption += "  Mip " + "{:<5}".format(str(idx) + ", R: ") + "{:.1f}".format(value[0]) + "  \n" # type: ignore
+              caption += "  Mip " + "{:<5}".format(str(idx) + ", G: ") + "{:.1f}".format(value[1]) + "  \n" # type: ignore
+              caption += "  Mip " + "{:<5}".format(str(idx) + ", B: ") + "{:.1f}".format(value[2]) + "  \n" # type: ignore
               if(value.__len__() == 4): # type: ignore
-                  caption += "  Mip " + "{:<5}".format(str(idx) + ", A: ") + "{:.3f}".format(value[3]) + "  \n\n" # type: ignore
+                  caption += "  Mip " + "{:<5}".format(str(idx) + ", A: ") + "{:.1f}".format(value[3]) + "  \n\n" # type: ignore
               else:
                   caption +="\n"
       else:
           for idx, value in enumerate(y_axis_values):
-              caption += "  Mip " + "{:<5}".format(str(idx) + ":") + "{:.3f}".format(value) + "  \n"
+              caption += "  Mip " + "{:<5}".format(str(idx) + ":") + "{:.1f}".format(value) + "  \n"
       self.numbers_list.setText(caption)

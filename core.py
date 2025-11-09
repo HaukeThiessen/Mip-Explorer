@@ -121,7 +121,9 @@ def calculate_raw_deltas(filepath: str, b_all_mips: bool, is_normal_map: bool = 
     For normal maps, the deltas are not just the differences between the pixel values, but the dot product between the vectors, and mips
     will be normalized on creation.
     The function will fail if the file format is not one of the SUPPORTEDFORMATS.
+    Results are mulitplied with 1000 to make the results easier to read. For non-normal textures, think of the values as kilo luminance.
     """
+    multiplicator: float = 1000.0 # purely cosmetic
     try:
         current_mip = get_image_from_file(filepath)
         if is_normal_map:
@@ -144,11 +146,13 @@ def calculate_raw_deltas(filepath: str, b_all_mips: bool, is_normal_map: bool = 
                 diff_sum = np.sum(dot_products, axis = (0, 1))
                 diff_sum = np.divide(diff_sum, num_pixels)
                 diff_sum = 1.0 - diff_sum
+                diff_sum = diff_sum * multiplicator
                 deltas.append(diff_sum)
             else:
                 diff = cv2.absdiff(current_mip, smaller_mip) # nested array with x entries, each containing y pixels with 3-4 channels
                 diff_sum = np.sum(diff, axis = (0, 1))
                 diff_sum = np.divide(diff_sum, num_pixels)
+                diff_sum = diff_sum * multiplicator
                 deltas.append(diff_sum.tolist())
             current_mip = next_mip
         return deltas

@@ -285,7 +285,7 @@ class FileBrowser(QWidget):
         progress.setValue(len(files))
         results_table_sorted = sorted(results_table)
         for entry in results_table_sorted:
-            entry[0] = "{:.3f}".format(entry[0])
+            entry[0] = "{:.1f}".format(entry[0])
         results_table_sorted.insert(0, ("Mip0 Information", "Filepath", "Dimensions", "has Alpha", "Mode"))
         time: str = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         try:

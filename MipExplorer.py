@@ -53,7 +53,7 @@ CACHESIZE = 100
 
 # The version of the cache generation method. Change this if you change the way the cache is generated, to ensure
 # that the tool doesn't try to use outdated caches
-CACHEVERSION: int = 4
+CACHEVERSION: int = 5
 
 ALLOW_CACHING: bool = True
 
@@ -465,7 +465,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
-  
+
     # Taskbar Icon
     app_ID: str = 'MipExplorer'
     try:
