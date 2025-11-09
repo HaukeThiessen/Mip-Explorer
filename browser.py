@@ -211,7 +211,7 @@ class FileBrowser(QWidget):
 
     def handle_search_term_changed(self):
             if self.search_bar.text() == "":
-                visible_formats = core.SUPPORTEDFORMATS
+                visible_formats = core.SUPPORTEDFORMATS.copy()
                 visible_formats.add("*.csv")
                 self.file_model.setNameFilters(visible_formats)
             else:
@@ -248,18 +248,16 @@ class FileBrowser(QWidget):
         """
         Create a csv file with the Mip0 info stats of all files, sorted by information density
         """
-        self.btn_batch.setEnabled(False)
-        self.btn_batch.setText("---")
+        self.set_batch_button_state(False)
         path = self.file_model.rootPath()
         supported_formats = []
-        if platform.system() == "Windows":
-            supported_formats = core.SUPPORTEDFORMATS
-        else:
-            for format in core.SUPPORTEDFORMATS:
-                supported_formats.append(format[1:])
+        for format in core.SUPPORTEDFORMATS:
+            supported_formats.append(format[1:])
         files = list(p.resolve() for p in Path(path).glob("**/*") if p.suffix in supported_formats)
         if files.__len__() == 0:
-            print ("No mip-mappable texture files found in the current directory.")
+            print ("No texture files found in the current directory.")
+            self.set_batch_button_state(True)
+            return
         results_table: list = []
         progress = QProgressDialog("", "Cancel", 0, len(files), self)
         progress.setWindowTitle("Processing Mips in \n" + path + "...")
@@ -298,8 +296,11 @@ class FileBrowser(QWidget):
         except:
             print("Failed to write Scan Results to csv file.")
         self.needs_attention.emit()
-        self.btn_batch.setText(self.scan_directory_label)
-        self.btn_batch.setEnabled(True)
+        self.set_batch_button_state(True)
+
+    def set_batch_button_state(self, is_enabled: bool):
+        self.btn_batch.setText(self.scan_directory_label if is_enabled else "---")
+        self.btn_batch.setEnabled(is_enabled)
 
     def open_current_directory_external(self):
         model: QFileSystemModel = QFileSystemModel(self.list_view.model())
@@ -311,7 +312,7 @@ class FileBrowser(QWidget):
                 subprocess.run([OS_FILEBROWSER_PATH, "/select,", selected_file_path])
             else:
                 subprocess.Popen(["xdg-open", selected_file_path])
-            
+
         else:
             self.jump_to_path(selected_file_path)
 
